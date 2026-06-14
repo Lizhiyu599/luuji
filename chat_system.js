@@ -1,101 +1,119 @@
 /**
- * 玉界 - iOS Liquid Glass 顶级交互系统
- * 风格：VisionOS / iMessage / 微信结构
- * 严禁使用 Emoji 符号
+ * 玉界 - 顶级 iOS 18 视觉交互系统
+ * 目标：沉浸式玻璃、实时 API 联动、极简结构
  */
 
-// ===== 1. 核心配置与持久化 =====
-window.ChatStorage = {
-    get: (key, def) => localStorage.getItem('yujie_' + key) || def,
-    set: (key, val) => localStorage.setItem('yujie_' + key, val)
-};
-
+// ===== 1. 核心状态与持久化 =====
 window.ChatConfig = {
-    userName: "用户",
-    userAvatar: ChatStorage.get('user_avatar', ''),
-    chatBg: ChatStorage.get('chat_bg', ''),
-    momentsBg: ChatStorage.get('moments_bg', ''),
-    wallet: 5200.00,
-    mental: { mood: "静谧", favorability: 85, action: "翻阅书卷", thought: "希望能为你提供完美的交互。" },
-    settings: {
-        minReply: 1, maxReply: 3, narration: true, pronoun: '我'
-    }
+    userAvatar: localStorage.getItem('yujie_user_avatar') || '',
+    chatBg: localStorage.getItem('yujie_chat_bg') || '',
+    activeTab: 'chats',
+    // 实时 API 统计
+    apiStats: {
+        total: parseInt(localStorage.getItem('api_total') || 0),
+        chatOnline: parseInt(localStorage.getItem('api_online') || 0),
+        chatOffline: parseInt(localStorage.getItem('api_offline') || 0),
+        image: parseInt(localStorage.getItem('api_image') || 0),
+        voice: parseInt(localStorage.getItem('api_voice') || 0)
+    },
+    contacts: [
+        { id: 'c1', name: '枝玉', avatar: '枝', bio: '你好，我是开发者枝玉。' }
+    ]
 };
 
-// ===== 2. 样式注入 (极简、模糊、高级) =====
-const injectLiquidStyles = () => {
-    const styleId = 'liquid-glass-ui';
+// 更新 API 点数的函数
+window.updateApiStats = function(type) {
+    ChatConfig.apiStats.total += 10; // 假设每轮 10 点
+    if(type) ChatConfig.apiStats[type] += 10;
+    localStorage.setItem('api_total', ChatConfig.apiStats.total);
+    localStorage.setItem('api_' + type, ChatConfig.apiStats[type]);
+    // 如果面板开着，同步刷新
+    const el = document.getElementById('stat-total');
+    if(el) el.innerText = ChatConfig.apiStats.total;
+};
+
+// ===== 2. 深度视觉注入 =====
+const injectAdvancedStyles = () => {
+    const styleId = 'yujie-advanced-ui';
     if (document.getElementById(styleId)) return;
     const s = document.createElement('style');
     s.id = styleId;
     s.innerHTML = `
-        /* 布局层级：底部导航栏绝对固定 */
-        .liquid-root {
-            display: flex; flex-direction: column; height: 100%; width: 100%;
-            background: #e5e5e7; position: relative; overflow: hidden;
+        /* 布局层级 */
+        .app-shell { display: flex; flex-direction: column; height: 100%; width: 100%; background: #f2f2f7; position: relative; overflow: hidden; }
+        
+        /* 标题栏高度换算：状态栏+标题栏约 88px */
+        .app-header {
+            flex-shrink: 0; height: 88px; display: flex; flex-direction: column;
+            background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+            border-bottom: 0.5px solid rgba(0,0,0,0.05); z-index: 100; position: relative;
         }
-        .liquid-body {
-            flex: 1; overflow-y: auto; padding-bottom: 80px; /* 为底部导航预留 */
-            -webkit-overflow-scrolling: touch;
+        .header-status { height: 44px; width: 100%; } /* 预留给系统状态栏 */
+        .header-title-bar { 
+            height: 44px; display: flex; align-items: center; justify-content: center; 
+            padding: 0 16px; position: relative; 
         }
-        .liquid-tabbar {
-            position: fixed; bottom: 0; left: 0; width: 100%; height: 65px;
-            background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px); border-top: 0.5px solid rgba(255,255,255,0.5);
-            display: flex; justify-content: space-around; align-items: center;
-            z-index: 100; padding-bottom: env(safe-area-inset-bottom);
-        }
-        .tab-item { font-size: 14px; color: #8e8e93; font-weight: 500; cursor: pointer; }
-        .tab-item.active { color: #000; font-weight: 700; }
+        .header-title-text { font-size: 17px; font-weight: 600; color: #000; letter-spacing: -0.4px; }
+        .header-left { position: absolute; left: 16px; font-size: 22px; font-weight: 300; cursor: pointer; }
 
-        /* 液态玻璃通用卡片 */
-        .glass-card {
-            background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(25px);
-            -webkit-backdrop-filter: blur(25px); border: 1px solid rgba(255,255,255,0.8);
-            border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        /* 内容区 */
+        .app-main { flex: 1; overflow-y: auto; background: #f2f2f7; -webkit-overflow-scrolling: touch; }
+
+        /* 底部导航栏 */
+        .app-footer {
+            height: 65px; display: flex; justify-content: space-around; align-items: center;
+            background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(30px);
+            border-top: 0.5px solid rgba(0,0,0,0.05); padding-bottom: env(safe-area-inset-bottom);
         }
+        .footer-item { font-size: 14px; font-weight: 500; color: #8e8e93; cursor: pointer; transition: color 0.2s; }
+        .footer-item.active { color: #000; font-weight: 700; }
 
-        /* 聊天气泡：iMessage Liquid */
-        .bubble { max-width: 75%; padding: 12px 16px; border-radius: 22px; font-size: 15px; margin-bottom: 12px; line-height: 1.4; position: relative; }
-        .bubble-user { align-self: flex-end; background: rgba(255,255,255,0.85); color: #000; backdrop-filter: blur(10px); border-bottom-right-radius: 4px; border: 0.5px solid #fff; }
-        .bubble-assistant { align-self: flex-start; background: rgba(0,0,0,0.75); color: #fff; backdrop-filter: blur(15px); border-bottom-left-radius: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-        .bubble-narration { align-self: center; background: none; color: #8e8e93; font-size: 12px; text-align: center; margin: 10px 0; }
-
-        /* 全屏聊天层 (最高层级) */
-        #chatOverlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #f2f2f7; z-index: 200; display: none; flex-direction: column;
+        /* 联系人列表极简风格 */
+        .contact-item {
+            background: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+            border-bottom: 0.5px dashed #e5e5ea; cursor: pointer;
         }
+        .contact-item:last-child { border-bottom: none; }
 
-        /* iOS 半屏详情面板 */
+        /* 聊天气泡 */
+        .bubble { max-width: 75%; padding: 12px 16px; border-radius: 20px; font-size: 15px; margin-bottom: 12px; line-height: 1.4; position: relative; }
+        .bubble-user { align-self: flex-end; background: rgba(255,255,255,0.8); backdrop-filter: blur(10px); color: #000; border-bottom-right-radius: 4px; }
+        .bubble-assistant { align-self: flex-start; background: rgba(0,0,0,0.75); backdrop-filter: blur(15px); color: #fff; border-bottom-left-radius: 4px; }
+        
+        /* 沉浸式单聊窗口 */
+        #chatOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f2f2f7; z-index: 500; display: none; flex-direction: column; }
+        .chat-header-glass { background: rgba(255,255,255,0.4) !important; } /* 进入聊天后透出壁纸 */
+        .chat-footer-glass { background: rgba(255,255,255,0.4) !important; }
+
+        /* iOS 半屏详情 */
+        .sheet-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.1); z-index: 600; display: none;
+        }
         .bottom-sheet {
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 85%;
-            background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(40px);
-            -webkit-backdrop-filter: blur(40px); border-top: 0.5px solid rgba(255,255,255,0.8);
-            border-radius: 30px 30px 0 0; transform: translateY(100%);
-            transition: transform 0.4s cubic-bezier(0.2, 1, 0.3, 1); z-index: 300;
+            position: absolute; bottom: 0; width: 100%; height: 85%;
+            background: rgba(255, 255, 255, 0.45); backdrop-filter: blur(40px);
+            border-top: 0.5px solid rgba(255,255,255,0.5); border-radius: 30px 30px 0 0;
+            transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.2, 1, 0.3, 1);
         }
         .bottom-sheet.active { transform: translateY(0); }
-        .sheet-handle { width: 40px; height: 5px; background: rgba(0,0,0,0.1); border-radius: 3px; margin: 12px auto; }
+        .sheet-handle { width: 40px; height: 5px; background: rgba(0,0,0,0.1); border-radius: 3px; margin: 12px auto; cursor: pointer; }
 
-        /* 状态浮窗 (ᥫ᭡) */
-        .peek-float {
-            position: absolute; top: 70px; right: 15px; width: 220px;
-            background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(30px);
-            border-radius: 24px; padding: 18px; z-index: 400; border: 1px solid #fff;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.08); display: none;
+        /* 搜索框美化 */
+        .search-container { position: relative; margin-bottom: 15px; }
+        .search-results { 
+            background: rgba(255,255,255,0.3); border-radius: 12px; margin-top: 5px; 
+            padding: 8px; display: none; font-size: 13px; color: #3a3a3c;
         }
-        .peek-divider { border-bottom: 0.5px dashed rgba(0,0,0,0.1); margin: 8px 0; }
-
-        /* 按钮风格 */
-        .btn-glass-black { background: rgba(0,0,0,0.8); color: #fff; border: none; border-radius: 14px; padding: 12px; cursor: pointer; }
     `;
     document.head.appendChild(s);
 };
 
-// ===== 3. 初始化与结构分配 =====
+// ===== 3. 核心应用架构 =====
 window.openApp = function(appName) {
-    injectLiquidStyles();
+    if (appName !== 'chat') return;
+    injectAdvancedStyles();
+    
     const appWindow = document.getElementById('genericAppWindow');
     const appContent = document.getElementById('appContent');
     if (!appWindow || !appContent) return;
@@ -103,145 +121,159 @@ window.openApp = function(appName) {
     appWindow.style.display = 'flex';
     appContent.style.padding = '0';
     appContent.innerHTML = `
-        <div class="liquid-root">
-            <div id="mainHeader" style="height:55px; display:flex; justify-content:space-between; align-items:center; padding:15px 20px 0;">
-                <span style="font-size:20px; font-weight:800;" id="pageTitle">聊天</span>
-                <span style="font-size:24px; cursor:pointer;" onclick="alert('加好友/扫码')">+</span>
-            </div>
+        <div class="app-shell">
+            <header class="app-header">
+                <div class="header-status"></div>
+                <div class="header-title-bar">
+                    <span class="header-title-text" id="shellTitle">聊天</span>
+                </div>
+            </header>
             
-            <div class="liquid-body" id="liquidBody"></div>
+            <main class="app-main" id="shellMain"></main>
 
-            <div class="liquid-tabbar">
-                <div class="tab-item active" onclick="window.switchTab('chats', this)">聊天</div>
-                <div class="tab-item" onclick="window.switchTab('contacts', this)">联系人</div>
-                <div class="tab-item" onclick="window.switchTab('moments', this)">动态</div>
-                <div class="tab-item" onclick="window.switchTab('me', this)">我的</div>
+            <footer class="app-footer">
+                <div class="footer-item active" onclick="window.navTab('chats', this)">聊天</div>
+                <div class="footer-item" onclick="window.navTab('contacts', this)">联系人</div>
+                <div class="footer-item" onclick="window.navTab('moments', this)">动态</div>
+                <div class="footer-item" onclick="window.navTab('me', this)">我的</div>
             </div>
 
             <div id="chatOverlay"></div>
-            <input type="file" id="universalPicker" style="display:none" accept="image/*">
         </div>
     `;
-    window.switchTab('chats');
+    window.navTab('chats');
 };
 
-// ===== 4. 标签切换逻辑 =====
-window.switchTab = function(tab, el) {
-    const body = document.getElementById('liquidBody');
-    const title = document.getElementById('pageTitle');
+// 导航切换
+window.navTab = function(tab, el) {
+    const main = document.getElementById('shellMain');
+    const title = document.getElementById('shellTitle');
     if (el) {
-        document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.footer-item').forEach(i => i.classList.remove('active'));
         el.classList.add('active');
     }
 
     if (tab === 'chats') {
         title.innerText = "聊天";
-        renderChatList(body);
+        renderChats(main);
     } else if (tab === 'contacts') {
         title.innerText = "联系人";
-        renderContactList(body);
+        renderContacts(main);
     } else if (tab === 'moments') {
         title.innerText = "动态";
-        renderMoments(body);
+        renderMoments(main);
     } else if (tab === 'me') {
         title.innerText = "我的";
-        renderMe(body);
+        renderMe(main);
     }
 };
 
-// ===== 5. 聊天窗口实现 (核心) =====
-window.enterSingleChat = function(name) {
+// ===== 4. 渲染逻辑：联系人与列表 =====
+function renderChats(container) {
+    container.innerHTML = `
+        <div style="background:#fff;">
+            ${ChatConfig.contacts.map(c => `
+                <div class="contact-item" onclick="window.enterChat('${c.name}')">
+                    <div style="width:50px; height:50px; background:#000; color:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-weight:800;">${c.avatar}</div>
+                    <div style="flex:1;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <span style="font-weight:600;">${c.name}</span>
+                            <span style="color:#c7c7cc; font-size:12px;">刚刚</span>
+                        </div>
+                        <div style="color:#8e8e93; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">你好，我是开发者枝玉。</div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderContacts(container) {
+    container.innerHTML = `
+        <div style="background:#fff;">
+            <div class="contact-item">
+                <div style="width:36px; height:36px; background:#f2f2f7; border-radius:8px; display:flex; align-items:center; justify-content:center;">+</div>
+                <span style="font-weight:600;">新的朋友</span>
+            </div>
+            <div style="height:24px; background:#f2f2f7; padding:0 16px; font-size:12px; color:#8e8e93; display:flex; align-items:center;">Z</div>
+            ${ChatConfig.contacts.map(c => `
+                <div class="contact-item" onclick="window.enterChat('${c.name}')">
+                    <div style="width:36px; height:36px; background:#000; border-radius:8px;"></div>
+                    <span style="font-weight:600;">${c.name}</span>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// ===== 5. 聊天窗口逻辑 (沉浸式) =====
+window.enterChat = function(name) {
     const overlay = document.getElementById('chatOverlay');
     overlay.style.display = 'flex';
     overlay.innerHTML = `
-        <div style="height:55px; display:flex; justify-content:space-between; align-items:center; padding:15px 16px 0; background:rgba(255,255,255,0.6); backdrop-filter:blur(20px); border-bottom:0.5px solid rgba(0,0,0,0.05);">
-            <span onclick="window.closeChat()" style="cursor:pointer; font-size:22px; font-weight:300;"> < </span>
-            <div style="text-align:center;" onclick="window.showChatDetail()">
-                <div style="font-weight:800; font-size:17px;">${name}</div>
-                <div id="typing" style="font-size:10px; color:#8e8e93; display:none;">输入中…</div>
+        <header class="app-header chat-header-glass">
+            <div class="header-status"></div>
+            <div class="header-title-bar">
+                <span class="header-left" onclick="window.closeChat()"> < </span>
+                <span class="header-title-text" onclick="window.toggleSheet(true)" style="cursor:pointer;">${name}</span>
+                <span id="chat-typing" style="position:absolute; bottom:-10px; font-size:10px; color:#8e8e93; display:none;">输入中…</span>
             </div>
-            <div style="display:flex; gap:18px; align-items:center;">
-                <span style="font-size:22px; cursor:pointer;" onclick="window.toggleMental()">ᥫ᭡</span>
-                <span style="font-size:20px; font-weight:700; cursor:pointer;" onclick="window.showChatDetail()"> > </span>
-            </div>
-        </div>
+        </header>
 
         <div id="chatFlow" style="flex:1; overflow-y:auto; padding:20px 16px; display:flex; flex-direction:column; 
             background-size:cover; background-position:center; background-image:url(${ChatConfig.chatBg});">
-            <div class="bubble-narration">iMessage 安全加密对话</div>
         </div>
 
-        <div style="padding:10px 16px 30px; background:rgba(255,255,255,0.7); backdrop-filter:blur(20px); border-top:0.5px solid rgba(0,0,0,0.1); display:flex; align-items:center; gap:12px;">
-            <div style="width:30px; height:30px; border:1px solid #000; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;" onclick="alert('功能：相册/位置')">+</div>
-            <input type="text" id="msgInput" style="flex:1; border:none; background:#fff; border-radius:18px; padding:10px 14px; outline:none;" placeholder="输入消息…" onkeypress="if(event.key==='Enter') window.handleSend()">
-            <div style="font-size:24px; color:#8e8e93;">∧</div>
-            <div style="font-size:28px; font-weight:300; cursor:pointer;" onclick="window.handleSend()">+</div>
+        <div class="app-footer chat-footer-glass" style="padding:10px 16px 30px;">
+            <input type="text" id="chatMsg" style="flex:1; border:none; background:#fff; border-radius:18px; padding:10px 14px; outline:none;" placeholder="输入消息…" onkeypress="if(event.key==='Enter') window.chatSend()">
+            <div style="font-size:26px; margin-left:12px; cursor:pointer;" onclick="window.chatSend()">+</div>
         </div>
 
-        <!-- 聊天详情面板 (Bottom Sheet) -->
-        <div id="chatDetailSheet" class="bottom-sheet">
-            <div class="sheet-handle" onclick="window.showChatDetail()"></div>
-            <div style="padding:0 25px 50px; overflow-y:auto; height:100%;">
-                <div style="font-size:22px; font-weight:800; margin:10px 0 25px;">聊天详情</div>
-                
-                <div class="glass-card" style="padding:18px; margin-bottom:15px;">
-                    <div style="color:#8e8e93; font-size:11px; margin-bottom:12px;">API消耗面板</div>
-                    <div style="font-size:14px; line-height:1.8;">
-                        <div style="display:flex; justify-content:space-between;"><span>总点数</span> <span>1200</span></div>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; color:#3a3a3c;">
-                            <span>线上: 100</span> <span>线下: 50</span>
-                            <span>生图: 200</span> <span>语音: 20</span>
+        <!-- 半屏详情 -->
+        <div class="sheet-overlay" id="sheetOverlay" onclick="window.toggleSheet(false)">
+            <div class="bottom-sheet" id="chatSheet" onclick="event.stopPropagation()">
+                <div class="sheet-handle" onclick="window.toggleSheet(false)"></div>
+                <div style="padding:0 24px 40px; overflow-y:auto; height:calc(100% - 40px);">
+                    <div style="font-size:20px; font-weight:800; margin-bottom:20px;">聊天详情</div>
+                    
+                    <!-- API 面板 -->
+                    <div style="background:rgba(255,255,255,0.4); border-radius:18px; padding:18px; margin-bottom:15px;">
+                        <div style="color:#8e8e93; font-size:11px; margin-bottom:10px; letter-spacing:1px;">API 消耗详情</div>
+                        <div style="font-size:14px; line-height:2;">
+                            <div style="display:flex; justify-content:space-between; font-weight:700;"><span>总点数</span> <span id="stat-total">${ChatConfig.apiStats.total}</span></div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; font-size:12px; color:#3a3a3c; margin-top:8px;">
+                                <span>线上: ${ChatConfig.apiStats.chatOnline}</span> <span>线下: ${ChatConfig.apiStats.chatOffline}</span>
+                                <span>图片: ${ChatConfig.apiStats.image}</span> <span>语音: ${ChatConfig.apiStats.voice}</span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <input type="text" placeholder="搜索聊天记录…" style="width:100%; border:none; background:#fff; border-radius:14px; padding:14px; margin-bottom:15px;">
-
-                <div class="glass-card" style="padding:18px; margin-bottom:15px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
-                        <span>AI总结 (50轮)</span> <span style="color:#007aff;">手动总结</span>
+                    <!-- 搜索功能 -->
+                    <div class="search-container">
+                        <input type="text" id="chatSearch" placeholder="搜索聊天记录…" style="width:100%; border:none; background:#fff; border-radius:12px; padding:12px;" oninput="window.doSearch(this.value)">
+                        <div id="searchRes" class="search-results"></div>
                     </div>
-                    <input type="range" min="10" max="200" value="50" style="width:100%; height:4px; background:#000; appearance:none; border-radius:2px;">
-                </div>
 
-                <div class="glass-card" style="padding:18px; margin-bottom:15px;">
-                    <div style="color:#8e8e93; font-size:11px; margin-bottom:10px;">聊天背景设置</div>
-                    <div style="display:flex; gap:12px; align-items:center;">
-                        <div style="width:100px; height:60px; border:2px dashed #ccc; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:12px; color:#ccc; background-size:cover; background-image:url(${ChatConfig.chatBg});" onclick="window.pickChatBg()">点击上传</div>
-                        <button class="btn-glass-black" style="flex:1;" onclick="window.clearChatBg()">清除背景</button>
+                    <div style="background:rgba(255,255,255,0.4); border-radius:18px; padding:15px; margin-bottom:15px;">
+                        <div style="display:flex; justify-content:space-between;"><span>AI 总结 (50轮)</span> <span style="font-size:12px; color:#007aff;">手动</span></div>
+                        <input type="range" style="width:100%; height:4px; appearance:none; background:#000; border-radius:2px; margin-top:15px;">
                     </div>
-                </div>
 
-                <div class="glass-card" style="padding:18px; margin-bottom:15px;">
-                    <div style="display:flex; justify-content:space-between;">
-                        <span>旁白生成</span> <input type="checkbox" checked>
+                    <div style="background:rgba(255,255,255,0.4); border-radius:18px; padding:15px; margin-bottom:15px;">
+                        <div style="color:#8e8e93; font-size:11px; margin-bottom:10px;">聊天背景</div>
+                        <div style="width:100%; height:80px; border:2px dashed #ccc; border-radius:12px; display:flex; align-items:center; justify-content:center; color:#ccc; background-size:cover; background-image:url(${ChatConfig.chatBg});" onclick="window.pickChatBg()">点击更换</div>
                     </div>
-                </div>
 
-                <div class="glass-card" style="padding:18px; margin-bottom:30px;">
-                    <div style="color:#ff3b30; font-weight:700;" onclick="window.toggleDangerZone()">危险区 ></div>
-                    <div id="dangerZone" style="display:none; margin-top:15px;">
-                        <button class="btn-glass-black" style="width:100%; background:#ff3b30; margin-bottom:10px;">清空聊天记录</button>
-                        <button class="btn-glass-black" style="width:100%; margin-bottom:10px;">拉黑联系人</button>
-                        <button class="btn-glass-black" style="width:100%;">删除联系人</button>
-                    </div>
+                    <button style="width:100%; padding:15px; border-radius:15px; border:none; background:#000; color:#fff; font-weight:700;" onclick="window.clearChat()">清空聊天记录</button>
                 </div>
             </div>
-        </div>
-
-        <div id="peekFloat" class="peek-float" onclick="this.style.display='none'">
-            <div style="font-weight:800; font-size:15px; margin-bottom:10px;">窥视ta...</div>
-            <div style="font-size:11px; color:#8e8e93;">心情</div><div style="font-size:13px;">${ChatConfig.mental.mood}</div><div class="peek-divider"></div>
-            <div style="font-size:11px; color:#8e8e93;">好感值</div><div style="font-size:13px;">${ChatConfig.mental.favorability}</div><div class="peek-divider"></div>
-            <div style="font-size:11px; color:#8e8e93;">当前动作</div><div style="font-size:13px;">${ChatConfig.mental.action}</div><div class="peek-divider"></div>
-            <div style="font-size:11px; color:#8e8e93;">内心想法</div><div style="font-size:13px;">${ChatConfig.mental.thought}</div>
         </div>
     `;
 };
 
-// ===== 6. 发送与逻辑处理 =====
-window.handleSend = function() {
-    const input = document.getElementById('msgInput');
+// 发送消息
+window.chatSend = function() {
+    const input = document.getElementById('chatMsg');
     const flow = document.getElementById('chatFlow');
     const text = input.value.trim();
     if (!text) return;
@@ -249,131 +281,75 @@ window.handleSend = function() {
     appendBubble(flow, 'user', text);
     input.value = '';
     
-    // 模拟回复
-    document.getElementById('typing').style.display = 'block';
+    // 模拟 API 逻辑
+    document.getElementById('chat-typing').style.display = 'block';
     setTimeout(() => {
-        document.getElementById('typing').style.display = 'none';
-        appendBubble(flow, 'assistant', "系统已接收消息。");
-    }, 1200);
+        document.getElementById('chat-typing').style.display = 'none';
+        appendBubble(flow, 'assistant', "系统正在响应中...");
+        window.updateApiStats('chatOnline'); // 对话成功，更新点数
+    }, 1500);
 };
 
 function appendBubble(box, role, text) {
     const div = document.createElement('div');
-    const isNar = text.startsWith('(') || text.startsWith('（');
-    div.className = isNar ? 'bubble bubble-narration' : `bubble bubble-${role}`;
+    div.className = `bubble bubble-${role}`;
     div.innerText = text;
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
+    // 简单模拟存储消息用于搜索
+    if(!window.chatHistory) window.chatHistory = [];
+    window.chatHistory.push(text);
 }
 
-// ===== 7. 各大板块渲染 =====
-function renderChatList(c) {
-    c.innerHTML = `
-        <div style="padding:10px 16px;">
-            <div class="glass-card" style="padding:15px; display:flex; align-items:center; gap:12px;" onclick="window.enterSingleChat('枝玉')">
-                <div style="width:50px; height:50px; background:#000; color:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-weight:800;">枝</div>
-                <div style="flex:1;">
-                    <div style="display:flex; justify-content:space-between;"><span style="font-weight:700;">枝玉</span><span style="font-size:12px; color:#c7c7cc;">刚刚</span></div>
-                    <div style="color:#8e8e93; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">你好，我是开发者枝玉。</div>
-                </div>
-            </div>
-        </div>
-    `;
-}
+// 搜索功能
+window.doSearch = function(val) {
+    const res = document.getElementById('searchRes');
+    if (!val || !window.chatHistory) { res.style.display = 'none'; return; }
+    const matches = window.chatHistory.filter(h => h.includes(val));
+    if (matches.length > 0) {
+        res.innerHTML = matches.map(m => `<div style="padding:4px 0; border-bottom:0.5px solid rgba(0,0,0,0.05);">${m}</div>`).join('');
+        res.style.display = 'block';
+    } else {
+        res.style.display = 'none';
+    }
+};
 
-function renderContactList(c) {
-    c.innerHTML = `
-        <div style="padding:10px 16px;">
-            <div style="background:#f2f2f7; padding:5px 10px; font-size:12px; color:#8e8e93;">Z</div>
-            <div class="glass-card" style="padding:12px; display:flex; align-items:center; gap:12px; margin-bottom:5px;" onclick="window.enterSingleChat('枝玉')">
-                <div style="width:36px; height:36px; background:#000; border-radius:8px;"></div>
-                <span style="font-weight:600;">枝玉</span>
-            </div>
-        </div>
-        <div style="position:fixed; right:6px; top:120px; font-size:10px; font-weight:800; display:flex; flex-direction:column; gap:4px;">
-            <span>A</span><span>B</span><span>C</span><span>Z</span><span>#</span>
-        </div>
-    `;
-}
-
-function renderMoments(c) {
-    c.innerHTML = `
-        <div style="height:220px; background-size:cover; background-position:center; background-image:url(${ChatConfig.momentsBg || 'https://via.placeholder.com/400x220'}); position:relative;" onclick="window.pickMomentsBg()">
-            <div style="position:absolute; right:15px; bottom:-20px; display:flex; align-items:flex-end; gap:12px;">
-                <span style="color:#fff; text-shadow:0 1px 3px rgba(0,0,0,0.5); font-weight:700; margin-bottom:20px;">${ChatConfig.userName}</span>
-                <div style="width:70px; height:70px; background:#eee; border-radius:15px; border:2px solid #fff; background-size:cover; background-image:url(${ChatConfig.userAvatar});"></div>
-            </div>
-        </div>
-        <div style="padding:60px 20px; text-align:center; color:#8e8e93;">动态流加载中...</div>
-    `;
-}
-
-function renderMe(c) {
-    c.innerHTML = `
-        <div style="padding:40px 20px 30px; display:flex; flex-direction:column; align-items:center;">
-            <div style="width:85px; height:85px; background:#fff; border-radius:20px; display:flex; align-items:center; justify-content:center; font-size:40px; color:#ccc; background-size:cover; background-image:url(${ChatConfig.userAvatar}); box-shadow:0 10px 30px rgba(0,0,0,0.05);" onclick="window.pickUserAvatar()">+</div>
-            <div style="margin-top:15px; font-size:22px; font-weight:800;">${ChatConfig.userName}</div>
-        </div>
-        <div style="padding:0 16px;">
-            <div class="glass-card" style="padding:15px; display:flex; justify-content:space-between; margin-bottom:10px;"><span>钱包余额</span> <span>¥ ${ChatConfig.wallet.toFixed(2)}</span></div>
-            <div class="glass-card" style="padding:15px; margin-bottom:10px;">收藏夹 ></div>
-            <div class="glass-card" style="padding:15px;">全局美化设置 ></div>
-        </div>
-    `;
-}
-
-// ===== 8. 功能控制 (持久化) =====
+// 通用交互
 window.closeChat = () => document.getElementById('chatOverlay').style.display = 'none';
-window.showChatDetail = () => document.getElementById('chatDetailSheet').classList.toggle('active');
-window.toggleMental = () => {
-    const f = document.getElementById('peekFloat');
-    f.style.display = f.style.display === 'block' ? 'none' : 'block';
+window.toggleSheet = (show) => {
+    const overlay = document.getElementById('sheetOverlay');
+    const sheet = document.getElementById('chatSheet');
+    overlay.style.display = show ? 'block' : 'none';
+    setTimeout(() => sheet.classList.toggle('active', show), 10);
 };
-window.toggleDangerZone = () => {
-    const d = document.getElementById('dangerZone');
-    d.style.display = d.style.display === 'none' ? 'block' : 'none';
-};
+window.clearChat = () => { if(confirm('确定清空？')) document.getElementById('chatFlow').innerHTML = ''; };
 
-// 通用图片上传处理器
-function handlePick(callback) {
-    const p = document.getElementById('universalPicker');
-    p.onchange = (e) => {
+// 背景图处理
+window.pickChatBg = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
         const file = e.target.files[0];
         if (file) {
-            const r = new FileReader();
-            r.onload = (ev) => callback(ev.target.result);
-            r.readAsDataURL(file);
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                ChatConfig.chatBg = ev.target.result;
+                localStorage.setItem('yujie_chat_bg', ev.target.result);
+                document.getElementById('chatFlow').style.backgroundImage = `url(${ev.target.result})`;
+            };
+            reader.readAsDataURL(file);
         }
     };
-    p.click();
-}
-
-window.pickChatBg = () => handlePick(res => {
-    ChatConfig.chatBg = res;
-    ChatStorage.set('chat_bg', res);
-    const flow = document.getElementById('chatFlow');
-    if (flow) flow.style.backgroundImage = `url(${res})`;
-    alert('聊天背景已保存');
-});
-
-window.clearChatBg = () => {
-    ChatConfig.chatBg = '';
-    ChatStorage.set('chat_bg', '');
-    const flow = document.getElementById('chatFlow');
-    if (flow) flow.style.backgroundImage = '';
-    alert('已恢复默认背景');
+    input.click();
 };
 
-window.pickMomentsBg = () => handlePick(res => {
-    ChatConfig.momentsBg = res;
-    ChatStorage.set('moments_bg', res);
-    window.switchTab('moments');
-});
+// 其余模块存根
+window.renderMoments = (c) => { 
+    c.innerHTML = `<div style="padding:100px 20px; text-align:center; color:#8e8e93; background:#fff; height:100%;">朋友圈模块加载中...</div>`; 
+};
+window.renderMe = (c) => { 
+    c.innerHTML = `<div style="padding:40px 20px; text-align:center; background:#fff; height:100%;">个人中心模块加载中...</div>`; 
+};
 
-window.pickUserAvatar = () => handlePick(res => {
-    ChatConfig.userAvatar = res;
-    ChatStorage.set('user_avatar', res);
-    window.switchTab('me');
-});
-
-console.log("玉界：VisionOS 风格液态玻璃系统注入完成。");
+console.log("玉界：沉浸式高级聊天系统重构完成。");
