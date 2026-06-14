@@ -1,188 +1,171 @@
 /* 
- * 玉界 - 聊天系统增强插件 (chat_system.js)
- * 修复版：增加了自动初始化逻辑，确保加载即运行
- * 风格：iOS iMessage / 液态玻璃 / 纯文字标签 / 禁止 Emoji
+ * 玉界 - 顶级聊天交互系统插件 (chat_system.js)
+ * 风格：iOS iMessage / 液态玻璃 / 极简黑白
+ * 严禁：禁止一切 Emoji，使用符号 ᥫ᭡, >, <, +, ∧
  */
 
-// ===== 1. 全局配置 (不允许删除) =====
-const ChatConfig = {
-    userAvatar: '',
-    userName: '用户',
-    walletBalance: 5200.00,
-    activeChatId: 'dev1',
-    messages: {}, 
+// ===== 1. 核心状态数据 =====
+const ChatSystemData = {
+    balance: 5200.00,
+    userName: "用户",
+    currentChat: "枝玉",
+    pronoun: "我", // 我, 你, ta
+    isNarrationOpen: true,
     contacts: [
-        { id: 'dev1', name: '枝玉', bio: '你好，我是开发者枝玉。', avatar: '枝', status: 'online' }
+        { id: "dev1", name: "枝玉", avatar: "枝", bio: "你好，我是开发者枝玉。", letters: "Z" }
     ],
-    moments: [],
-    settings: {
-        replyCount: [1, 3], 
-        showNarration: true,
-        pronoun: '我', 
-        globalWallpaper: ''
-    }
+    // 心理状态
+    mental: { mood: "平静", favorability: 0, action: "静坐", thought: "无" }
 };
 
-// ===== 2. 注入专用CSS样式 (确保UI结构正确) =====
-const style = document.createElement('style');
-style.innerHTML = `
-/* 移除所有emoji干扰 */
-* { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+// ===== 2. 注入核心样式 (含液态玻璃与气泡) =====
+const injectStyles = () => {
+    if (document.getElementById('chat-enhanced-style')) return;
+    const style = document.createElement('style');
+    style.id = 'chat-enhanced-style';
+    style.innerHTML = `
+        /* 布局容器 */
+        .chat-full-container { height: 100%; display: flex; flex-direction: column; background: #f2f2f7; position: relative; overflow: hidden; }
+        
+        /* iMessage 气泡：助手-黑，用户-白 */
+        .bubble { max-width: 78%; padding: 12px 16px; border-radius: 22px; font-size: 15px; line-height: 1.5; margin-bottom: 10px; position: relative; word-wrap: break-word; }
+        .bubble-assistant { align-self: flex-start; background: rgba(0,0,0,0.85); color: #fff; border-bottom-left-radius: 4px; backdrop-filter: blur(20px); }
+        .bubble-user { align-self: flex-end; background: rgba(255,255,255,0.7); color: #000; border-bottom-right-radius: 4px; backdrop-filter: blur(20px); border: 0.5px solid rgba(255,255,255,0.8); }
+        .bubble-narration { align-self: center; background: none; color: #8e8e93; font-size: 13px; text-align: center; max-width: 90%; margin: 15px 0; }
 
-.msg-bubble {
-    max-width: 75%; padding: 10px 16px; border-radius: 20px; font-size: 15px; 
-    line-height: 1.4; position: relative; margin-bottom: 12px; transition: transform 0.2s;
-}
-/* 助手：黑色液态玻璃 + 白色文字 */
-.msg-assistant {
-    align-self: flex-start; background: rgba(0, 0, 0, 0.85); color: #ffffff;
-    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-    border-bottom-left-radius: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-}
-/* 用户：白色液态玻璃 + 黑色文字 */
-.msg-user {
-    align-self: flex-end; background: rgba(255, 255, 255, 0.7); color: #000000;
-    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255,255,255,0.8); border-bottom-right-radius: 4px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-}
-/* 旁白：居中无气泡 */
-.msg-narration {
-    align-self: center; color: #8e8e93; font-size: 13px; text-align: center;
-    margin: 15px 0; max-width: 90%; background: none !important; backdrop-filter: none !important; box-shadow: none !important;
+        /* 液态玻璃半窗 */
+        .liquid-half-panel { 
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 85%; 
+            background: rgba(255,255,255,0.25); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+            border-top: 0.5px solid rgba(255,255,255,0.5); border-radius: 30px 30px 0 0;
+            transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); z-index: 1000;
+        }
+        .liquid-half-panel.active { transform: translateY(0); }
+        .panel-close-area { height: 40px; width: 100%; display: flex; justify-content: center; align-items: center; cursor: pointer; }
+        .panel-bar { width: 40px; height: 5px; background: rgba(0,0,0,0.1); border-radius: 3px; }
+
+        /* 底部标签栏 - 纯文字 */
+        .tab-bar-text { height: 60px; background: rgba(242,242,247,0.8); backdrop-filter: blur(20px); display: flex; justify-content: space-around; align-items: center; border-top: 0.5px solid rgba(0,0,0,0.1); }
+        .tab-item { font-size: 14px; font-weight: 500; color: #8e8e93; cursor: pointer; }
+        .tab-item.active { color: #000; font-weight: 700; }
+
+        /* 红包/转账 UI */
+        .bill-card { background: #1a1a1a; color: #fff; padding: 15px; border-radius: 12px; width: 200px; margin: 10px 0; }
+        .bill-header { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 8px; opacity: 0.8; }
+        .bill-body { font-size: 18px; font-weight: 600; border-bottom: 0.5px solid rgba(255,255,255,0.1); padding-bottom: 8px; margin-bottom: 5px; }
+        .bill-footer { font-size: 10px; opacity: 0.5; }
+
+        /* 状态浮窗 (ᥫ᭡) */
+        .peek-window { 
+            position: absolute; top: 70px; right: 20px; width: 220px; 
+            background: rgba(255,255,255,0.4); backdrop-filter: blur(30px); border: 0.5px solid rgba(255,255,255,0.8);
+            border-radius: 20px; padding: 15px; z-index: 2000; display: none; box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        }
+        .peek-dash { border-bottom: 0.5px dashed rgba(0,0,0,0.1); margin: 8px 0; }
+    `;
+    document.head.appendChild(style);
+};
+
+// ===== 3. 初始化入口：强制覆盖原有逻辑 =====
+const initChatSystem = () => {
+    injectStyles();
+    
+    // 核心：劫持 openApp
+    const originalOpenApp = window.openApp;
+    window.openApp = function(appName) {
+        if (appName === 'chat') {
+            startEnhancedChat();
+        } else {
+            // 调用原始逻辑处理其他APP
+            if (typeof originalOpenApp === 'function') originalOpenApp(appName);
+        }
+    };
+    
+    console.log("玉界：聊天交互系统注入成功。");
+};
+
+// 执行初始化
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initChatSystem);
+} else {
+    initChatSystem();
 }
 
-/* 详情半窗设置 */
-.half-panel {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(35px);
-    -webkit-backdrop-filter: blur(35px); z-index: 1000; transform: translateY(100%);
-    transition: transform 0.4s cubic-bezier(0.2, 1, 0.3, 1);
-    display: flex; flex-direction: column;
-}
-.half-panel.active { transform: translateY(0); }
-.half-panel-handle { width: 40px; height: 5px; background: rgba(0,0,0,0.2); border-radius: 3px; margin: 12px auto; cursor: pointer; }
-
-/* 底部标签栏 - 纯文字，无图标 */
-.chat-tab-bar {
-    height: 65px; display: flex; justify-content: space-around; align-items: center;
-    background: rgba(242, 242, 247, 0.85); backdrop-filter: blur(20px); border-top: 0.5px solid rgba(0,0,0,0.1); padding-bottom: 10px;
-}
-.chat-tab-item { font-size: 15px; font-weight: 500; color: #8e8e93; cursor: pointer; transition: 0.2s; }
-.chat-tab-item.active { color: #000000; font-weight: 700; }
-
-/* 状态浮窗 */
-.status-peek {
-    position: absolute; top: 70px; right: 20px; width: 220px;
-    background: rgba(255, 255, 255, 0.5); border: 1px solid rgba(255,255,255,0.7);
-    backdrop-filter: blur(25px); border-radius: 24px; padding: 18px; z-index: 1100;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.1); display: none;
-}
-.status-row { padding: 10px 0; border-bottom: 0.5px dashed rgba(0,0,0,0.1); }
-.status-label { font-size: 11px; color: #8e8e93; margin-bottom: 4px; }
-.status-value { font-size: 13px; color: #000; font-weight: 600; }
-
-.btn-black { background: #000; color: #fff; border: none; border-radius: 12px; padding: 12px; cursor: pointer; font-weight: 600; }
-.btn-white { background: #fff; color: #000; border: 1px solid #e5e5ea; border-radius: 12px; padding: 12px; cursor: pointer; }
-`;
-document.head.appendChild(style);
-
-// ===== 3. 核心函数覆盖与增强 =====
-
-window.openApp = function(appName) {
+// ===== 4. 页面切换逻辑 =====
+function startEnhancedChat() {
     const appWindow = document.getElementById('genericAppWindow');
     const appContent = document.getElementById('appContent');
-    
-    if (!appWindow || !appContent) {
-        console.error("致命错误：HTML中未找到 genericAppWindow 或 appContent 容器。");
-        return;
-    }
+    const appTitle = document.getElementById('appTitle');
 
-    // 显示应用窗口
     appWindow.style.display = 'flex';
-    appContent.innerHTML = ''; 
+    appTitle.innerText = '聊天';
     appContent.style.padding = '0';
-    appContent.style.height = '100%';
-
-    if (appName === 'chat') {
-        renderChatContainer(appContent);
-    } else {
-        appContent.innerHTML = `<div style="padding:100px 20px; text-align:center; color:#8e8e93;">${appName} 正在开发中...</div>`;
-    }
-};
-
-function renderChatContainer(container) {
-    container.innerHTML = `
-        <div id="chatMainWrap" style="flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; height:100%;">
-            <!-- 顶部导航 -->
-            <div id="chatHeader" style="height:60px; display:flex; justify-content:space-between; align-items:center; padding:15px 20px 0; border-bottom:0.5px solid rgba(0,0,0,0.05); background:#f2f2f7;">
-                <span style="font-size:20px; font-weight:800;" id="chatNavTitle">聊天</span>
-                <span style="font-size:26px; cursor:pointer; font-weight:300;" onclick="showAddMenu()">+</span>
+    appContent.innerHTML = `
+        <div class="chat-full-container">
+            <div id="chatHeader" style="height:50px; display:flex; justify-content:space-between; align-items:center; padding:0 20px; background:#f2f2f7; border-bottom:0.5px solid rgba(0,0,0,0.1);">
+                <div style="font-size:18px; font-weight:700;" id="currentTabTitle">聊天</div>
+                <div style="font-size:24px; cursor:pointer;" onclick="showTopAddMenu()">+</div>
             </div>
             
-            <!-- 内容视图区 -->
-            <div id="chatViewArea" style="flex:1; overflow-y:auto; background:#f2f2f7;"></div>
+            <div id="chatMainDisplay" style="flex:1; overflow-y:auto; position:relative;"></div>
 
-            <!-- 底部标签栏 (只显示文字) -->
-            <div class="chat-tab-bar" id="chatTabBar">
-                <div class="chat-tab-item active" onclick="switchTab('chats')">聊天</div>
-                <div class="chat-tab-item" onclick="switchTab('contacts')">联系人</div>
-                <div class="chat-tab-item" onclick="switchTab('moments')">动态</div>
-                <div class="chat-tab-item" onclick="switchTab('me')">我的</div>
+            <div class="tab-bar-text">
+                <div class="tab-item active" onclick="switchChatTab('chats', this)">聊天</div>
+                <div class="tab-item" onclick="switchChatTab('contacts', this)">联系人</div>
+                <div class="tab-item" onclick="switchChatTab('moments', this)">动态</div>
+                <div class="tab-item" onclick="switchChatTab('me', this)">我的</div>
+            </div>
+            
+            <!-- 状态浮窗 -->
+            <div id="peekWindow" class="peek-window" onclick="this.style.display='none'">
+                <div style="font-weight:700; margin-bottom:10px;">窥视ta...</div>
+                <div style="font-size:11px; color:#8e8e93;">心情</div><div id="p-mood" style="font-size:13px;">平静</div><div class="peek-dash"></div>
+                <div style="font-size:11px; color:#8e8e93;">好感值</div><div id="p-fav" style="font-size:13px;">0</div><div class="peek-dash"></div>
+                <div style="font-size:11px; color:#8e8e93;">当前动作</div><div id="p-act" style="font-size:13px;">无</div><div class="peek-dash"></div>
+                <div style="font-size:11px; color:#8e8e93;">内心想法</div><div id="p-tht" style="font-size:13px;">无</div>
             </div>
         </div>
-
-        <div id="statusPeek" class="status-peek" onclick="this.style.display='none'">
-            <div style="font-size:15px; font-weight:800; margin-bottom:12px;">窥视ta...</div>
-            <div class="status-row"><div class="status-label">心情</div><div class="status-value" id="peek-mood">平静</div></div>
-            <div class="status-row"><div class="status-label">好感值</div><div class="status-value" id="peek-fav">0</div></div>
-            <div class="status-row"><div class="status-label">当前动作</div><div class="status-value" id="peek-action">无</div></div>
-            <div class="status-row"><div class="status-label">内心想法</div><div class="status-value" id="peek-thought">无</div></div>
-        </div>
     `;
-    switchTab('chats');
+    switchChatTab('chats');
 }
 
-window.switchTab = function(tab) {
-    const view = document.getElementById('chatViewArea');
-    const title = document.getElementById('chatNavTitle');
-    const tabs = document.querySelectorAll('.chat-tab-item');
-    if (!view) return;
+// 标签切换
+window.switchChatTab = function(type, el) {
+    const container = document.getElementById('chatMainDisplay');
+    const title = document.getElementById('currentTabTitle');
+    if (el) {
+        document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+    }
 
-    tabs.forEach(t => t.classList.remove('active'));
-    
-    if (tab === 'chats') {
-        title.innerText = '聊天';
-        tabs[0].classList.add('active');
-        renderConversationList(view);
-    } else if (tab === 'contacts') {
-        title.innerText = '联系人';
-        tabs[1].classList.add('active');
-        renderContactsList(view);
-    } else if (tab === 'moments') {
-        title.innerText = '动态';
-        tabs[2].classList.add('active');
-        renderMomentsFeed(view);
-    } else if (tab === 'me') {
-        title.innerText = '我的';
-        tabs[3].classList.add('active');
-        renderMePage(view);
+    if (type === 'chats') {
+        title.innerText = "聊天";
+        renderSessionList(container);
+    } else if (type === 'contacts') {
+        title.innerText = "联系人";
+        renderContactList(container);
+    } else if (type === 'moments') {
+        title.innerText = "动态";
+        renderMoments(container);
+    } else if (type === 'me') {
+        title.innerText = "我的";
+        renderMePage(container);
     }
 };
 
-// 会话列表
-function renderConversationList(container) {
+// ===== 5. 会话列表与聊天窗口 =====
+function renderSessionList(container) {
     container.innerHTML = `
-        <div style="padding:5px 0;">
-            ${ChatConfig.contacts.map(c => `
-                <div style="background:#fff; margin-bottom:1px; padding:14px 16px; display:flex; align-items:center; gap:14px; cursor:pointer;" onclick="enterSingleChat('${c.id}')">
-                    <div style="width:52px; height:52px; border-radius:14px; background:#000; color:#fff; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800;">${c.avatar}</div>
-                    <div style="flex:1; border-bottom:0.5px solid #f0f0f0; padding-bottom:10px;">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                            <span style="font-weight:700; font-size:16px;">${c.name}</span>
-                            <span style="font-size:12px; color:#c7c7cc;">刚刚</span>
+        <div style="padding:10px 0;">
+            ${ChatSystemData.contacts.map(c => `
+                <div style="background:#fff; padding:15px; display:flex; align-items:center; gap:12px; border-bottom:0.5px solid #f0f0f0; cursor:pointer;" onclick="openSingleChat('${c.name}')">
+                    <div style="width:50px; height:50px; background:#000; color:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700;">${c.avatar}</div>
+                    <div style="flex:1;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <span style="font-weight:600;">${c.name}</span>
+                            <span style="color:#c7c7cc; font-size:12px;">刚刚</span>
                         </div>
-                        <div style="font-size:13px; color:#8e8e93; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${c.bio}</div>
+                        <div style="color:#8e8e93; font-size:13px;">你好，我是开发者枝玉。</div>
                     </div>
                 </div>
             `).join('')}
@@ -190,136 +173,92 @@ function renderConversationList(container) {
     `;
 }
 
-// 单聊窗口
-window.enterSingleChat = function(chatId) {
-    const contact = ChatConfig.contacts.find(c => c.id === chatId);
-    const mainWrap = document.getElementById('chatMainWrap');
-    
-    const chatWinHTML = `
-        <div id="singleChatWindow" style="position:absolute; top:0; left:0; width:100%; height:100%; background:#f2f2f7; z-index:500; display:flex; flex-direction:column;">
-            <!-- 聊天顶部 -->
-            <div style="height:60px; display:flex; justify-content:space-between; align-items:center; padding:15px 16px 0; background:rgba(255,255,255,0.8); backdrop-filter:blur(20px); border-bottom:0.5px solid rgba(0,0,0,0.1);">
-                <span onclick="exitSingleChat()" style="cursor:pointer; color:#000; font-size:22px; font-weight:300;"> < </span>
-                <div style="text-align:center;" onclick="toggleChatDetails()">
-                    <div id="chattingName" style="font-weight:800; font-size:17px;">${contact.name}</div>
-                    <div id="chattingStatus" style="font-size:10px; color:#8e8e93; display:none;">输入中…</div>
+window.openSingleChat = function(name) {
+    const container = document.getElementById('chatMainDisplay');
+    container.innerHTML = `
+        <div id="chatWin" style="height:100%; display:flex; flex-direction:column; background:#f2f2f7; position:absolute; top:0; left:0; width:100%; z-index:10;">
+            <!-- 聊天头 -->
+            <div style="height:50px; display:flex; justify-content:space-between; align-items:center; padding:0 16px; background:rgba(255,255,255,0.85); backdrop-filter:blur(20px); border-bottom:0.5px solid rgba(0,0,0,0.1);">
+                <span onclick="switchChatTab('chats')" style="cursor:pointer; font-size:18px;"> < </span>
+                <div style="text-align:center;" onclick="showChatDetail()">
+                    <div style="font-weight:700;" id="chattingName">${name}</div>
+                    <div id="inputStatus" style="font-size:10px; color:#8e8e93; display:none;">输入中…</div>
                 </div>
-                <div style="display:flex; gap:18px; align-items:center;">
-                    <span style="font-size:22px; cursor:pointer;" onclick="togglePeekStatus()">ᥫ᭡</span>
-                    <span style="font-size:18px; font-weight:700; cursor:pointer;" onclick="toggleChatDetails()"> > </span>
+                <div style="display:flex; gap:15px; align-items:center;">
+                    <span style="cursor:pointer;" onclick="togglePeek()">ᥫ᭡</span>
+                    <span style="cursor:pointer; font-weight:700;" onclick="showChatDetail()"> > </span>
                 </div>
             </div>
 
             <!-- 消息列表 -->
-            <div id="chatBox" style="flex:1; overflow-y:auto; padding:20px 16px; display:flex; flex-direction:column;">
+            <div id="msgBox" style="flex:1; overflow-y:auto; padding:20px 16px; display:flex; flex-direction:column;">
                 <div style="text-align:center; color:#c7c7cc; font-size:12px; margin-bottom:20px;">iMessage</div>
             </div>
 
-            <!-- 输入框区域 -->
+            <!-- 输入框栏 -->
             <div style="padding:10px 16px 25px; background:#f2f2f7; border-top:0.5px solid rgba(0,0,0,0.1); display:flex; align-items:center; gap:12px;">
-                <div style="width:30px; height:30px; border:1px solid #000; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:20px; font-weight:300;" onclick="toggleAddons()">+</div>
-                <input type="text" id="chatMsgInput" style="flex:1; border:none; background:#fff; border-radius:20px; padding:10px 15px; outline:none; font-size:15px;" placeholder="输入消息…" onkeypress="if(event.key==='Enter') performSend()">
-                <div style="font-size:22px; cursor:pointer;" onclick="alert('语音模式')">∧</div>
-                <div id="sendBtn" style="font-size:22px; color:#000; cursor:pointer; font-weight:300;" onclick="performSend()">+</div>
+                <div style="width:30px; height:30px; border:1px solid #000; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;" onclick="toggleAddMenu()">+</div>
+                <input type="text" id="chatInput" style="flex:1; border:none; background:#fff; border-radius:20px; padding:10px 15px; outline:none;" placeholder="输入消息…" onkeypress="if(event.key==='Enter') sendMsg()">
+                <div style="font-size:22px; cursor:pointer;" onclick="alert('语音已开启')">∧</div>
+                <div style="font-size:26px; cursor:pointer;" onclick="sendMsg()">+</div>
             </div>
 
-            <!-- 设置详情半窗 -->
-            <div id="chatDetailsPanel" class="half-panel">
-                <div class="half-panel-handle" onclick="toggleChatDetails()"></div>
-                <div style="flex:1; overflow-y:auto; padding:0 20px 40px;">
-                    <div style="font-size:20px; font-weight:800; margin:10px 0 25px;">聊天详情</div>
-                    
-                    <!-- 详情内容根据提示词补全... -->
-                    <div style="background:#fff; padding:18px; border-radius:20px; margin-bottom:15px; box-shadow:0 2px 10px rgba(0,0,0,0.02);">
-                        <div style="color:#8e8e93; font-size:11px; margin-bottom:12px; letter-spacing:1px;">API消耗详情</div>
-                        <div style="display:flex; flex-direction:column; gap:10px; font-size:14px; font-weight:500;">
-                            <span>全部点数：1200</span>
-                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:13px; color:#3a3a3c;">
-                                <span>线上聊天：100</span>
-                                <span>线下聊天：50</span>
-                                <span>生成图片：200</span>
-                                <span>语音：20</span>
-                            </div>
-                        </div>
-                    </div>
+            <!-- 多交互功能菜单 -->
+            <div id="addMenu" class="liquid-half-panel" style="height:40%;">
+                <div class="panel-close-area" onclick="toggleAddMenu()"><div class="panel-bar"></div></div>
+                <div style="padding:20px; display:grid; grid-template-columns:repeat(4,1fr); gap:20px; text-align:center; font-size:12px; color:#8e8e93;">
+                    <div onclick="alert('请在相册功能中上传表情包')">表情包</div>
+                    <div onclick="alert('请选择图库图片')">相册</div>
+                    <div onclick="openRedPacket()">红包</div>
+                    <div onclick="openTransfer()">转账</div>
+                    <div onclick="alert('链接已识别')">文件</div>
+                    <div onclick="promptLocation()">位置</div>
+                </div>
+            </div>
 
-                    <div style="margin-bottom:15px;">
-                        <input type="text" placeholder="此处可搜索聊天记录…" style="width:100%; border:none; background:#fff; padding:14px; border-radius:14px; font-size:14px;">
+            <!-- 聊天设置半窗 -->
+            <div id="chatDetailPanel" class="liquid-half-panel">
+                <div class="panel-close-area" onclick="showChatDetail()"><div class="panel-bar"></div></div>
+                <div style="padding:0 25px 40px; overflow-y:auto;">
+                    <div style="font-size:20px; font-weight:700; margin:10px 0 20px;">聊天详情</div>
+                    <div style="background:#fff; padding:15px; border-radius:15px; margin-bottom:15px;">
+                        <div style="color:#8e8e93; font-size:11px; margin-bottom:10px;">API消耗详情</div>
+                        <div style="font-size:13px; line-height:1.8;">全部点数：1200<br>线上聊天：100 | 线下聊天：50<br>生成图片：200 | 语音：20</div>
                     </div>
-
-                    <div style="background:#fff; padding:18px; border-radius:20px; margin-bottom:15px;">
+                    <div style="background:#fff; padding:15px; border-radius:15px; margin-bottom:15px;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                            <span style="font-weight:600;">API总结功能 (50轮)</span>
+                            <span>自动总结 (50轮)</span>
+                            <span style="font-size:12px; color:#8e8e93;">手动 ></span>
                         </div>
-                        <input type="range" min="10" max="200" value="50" style="width:100%; height:4px; background:#000; outline:none; appearance:none; border-radius:2px;">
-                        <button class="btn-black" style="width:100%; margin-top:15px;">手动立即总结</button>
+                        <input type="range" style="width:100%; height:4px; background:#000; appearance:none;">
                     </div>
-
-                    <button class="btn-white" style="width:100%; color:#ff3b30; font-weight:700;" onclick="alert('记录已清空')">清空聊天记录</button>
+                    <button class="btn-white" style="width:100%; color:#ff3b30; font-weight:700;" onclick="clearHistory()">清空聊天记录</button>
                 </div>
             </div>
         </div>
     `;
-    
-    mainWrap.insertAdjacentHTML('beforeend', chatWinHTML);
 };
 
-window.exitSingleChat = function() {
-    const win = document.getElementById('singleChatWindow');
-    if (win) win.remove();
-};
-
-window.toggleChatDetails = function() {
-    document.getElementById('chatDetailsPanel').classList.toggle('active');
-};
-
-window.togglePeekStatus = function() {
-    const peek = document.getElementById('statusPeek');
-    peek.style.display = peek.style.display === 'block' ? 'none' : 'block';
-};
-
-// 消息发送核心逻辑
-window.performSend = async function() {
-    const input = document.getElementById('chatMsgInput');
+// ===== 6. 发送与 API 逻辑 =====
+window.sendMsg = async function() {
+    const input = document.getElementById('chatInput');
     const text = input.value.trim();
     if (!text) return;
 
-    appendMsg('user', text);
+    appendBubble(text, 'user');
     input.value = '';
 
-    document.getElementById('chattingStatus').style.display = 'block';
+    // 显示“输入中…”
+    document.getElementById('inputStatus').style.display = 'block';
     document.getElementById('chattingName').style.display = 'none';
 
-    // 接入API
-    await callChatAPI(text);
-};
-
-function appendMsg(role, text) {
-    const box = document.getElementById('chatBox');
-    if (!box) return;
-    const msgDiv = document.createElement('div');
-    
-    const isNarration = text.startsWith('(') || text.startsWith('（');
-    if (isNarration) {
-        msgDiv.className = 'msg-bubble msg-narration';
-    } else {
-        msgDiv.className = `msg-bubble msg-${role}`;
-    }
-    
-    msgDiv.innerText = text;
-    box.appendChild(msgDiv);
-    box.scrollTop = box.scrollHeight;
-}
-
-async function callChatAPI(userText) {
+    // 真正的请求逻辑
     const baseUrl = localStorage.getItem('main_api_base_url');
     const apiKey = localStorage.getItem('main_api_key');
     const model = localStorage.getItem('main_api_model');
 
     if (!baseUrl || !apiKey) {
-        appendMsg('system', '请先在系统设置中配置API');
-        document.getElementById('chattingStatus').style.display = 'none';
-        document.getElementById('chattingName').style.display = 'block';
+        appendBubble("系统：请在主设置页面配置API信息。", "narration");
         return;
     }
 
@@ -330,72 +269,151 @@ async function callChatAPI(userText) {
             body: JSON.stringify({
                 model: model,
                 messages: [
-                    { role: 'system', content: `角色扮演。禁Emoji。回复禁超20字。必须带状态JSON：{"mood":"心情","favorability":50,"action":"动作","thought":"内心"}` },
-                    { role: 'user', content: userText }
+                    { role: 'system', content: `角色扮演中。回复禁止超20字。严禁emoji。结尾必须带状态JSON：{"mood":"心情","favorability":10,"action":"动作","thought":"想法"}` },
+                    { role: 'user', content: text }
                 ]
             })
         });
 
         const data = await response.json();
-        document.getElementById('chattingStatus').style.display = 'none';
+        document.getElementById('inputStatus').style.display = 'none';
         document.getElementById('chattingName').style.display = 'block';
 
         if (data.choices && data.choices[0]) {
             let content = data.choices[0].message.content;
+            
+            // 解析状态 JSON
             const jsonMatch = content.match(/\{.*\}/);
             if (jsonMatch) {
                 try {
-                    const status = JSON.parse(jsonMatch[0]);
-                    document.getElementById('peek-mood').innerText = status.mood;
-                    document.getElementById('peek-fav').innerText = status.favorability;
-                    document.getElementById('peek-action').innerText = status.action;
-                    document.getElementById('peek-thought').innerText = status.thought;
+                    const st = JSON.parse(jsonMatch[0]);
+                    ChatSystemData.mental = st;
+                    updatePeekUI();
                     content = content.replace(jsonMatch[0], '').trim();
                 } catch(e) {}
             }
-            appendMsg('assistant', content);
+            appendBubble(content, 'assistant');
         }
     } catch (e) {
-        document.getElementById('chattingStatus').style.display = 'none';
-        document.getElementById('chattingName').style.display = 'block';
-        appendMsg('system', 'API连接失败');
+        appendBubble("系统：API链接超时。", "narration");
     }
-}
+};
 
-// ===== 9. 自动启动入口 (核心修复部分) =====
-
-function initChatSystem() {
-    console.log("正在初始化聊天系统...");
+function appendBubble(text, role) {
+    const box = document.getElementById('msgBox');
+    if (!box) return;
+    const div = document.createElement('div');
+    const isNarration = text.startsWith('(') || text.startsWith('（');
     
-    // 检查基础HTML结构是否准备好
-    const appWindow = document.getElementById('genericAppWindow');
-    if (!appWindow) {
-        console.warn("未检测到 genericAppWindow，系统可能处于静态预览或HTML未完全加载。");
-        return;
+    if (isNarration) {
+        div.className = 'bubble bubble-narration';
+    } else {
+        div.className = `bubble bubble-${role}`;
     }
-
-    // 自动打开聊天应用
-    window.openApp('chat');
-    console.log("聊天系统已自动启动。");
+    
+    div.innerText = text;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
 }
 
-// 确保在页面加载后自动运行
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initChatSystem);
-} else {
-    initChatSystem();
+// ===== 7. 多交互面板实现 (红包/转账/位置) =====
+window.openRedPacket = function() {
+    const amount = prompt("请输入红包金额 (0.01 - 200):");
+    if (!amount || isNaN(amount)) return;
+    const note = prompt("备注 (可不填):") || "恭喜发财";
+    
+    ChatSystemData.balance -= parseFloat(amount);
+    appendBubble(`用户发出了一个 [红包]`, 'narration');
+    const box = document.getElementById('msgBox');
+    const card = document.createElement('div');
+    card.className = 'bill-card';
+    card.style.alignSelf = 'flex-end';
+    card.innerHTML = `
+        <div class="bill-header">🧧 红包</div>
+        <div class="bill-body">${note}</div>
+        <div class="bill-footer">金额: ${amount} | 点击领取</div>
+    `;
+    box.appendChild(card);
+};
+
+window.openTransfer = function() {
+    const amount = prompt("请输入转账金额:");
+    if (!amount || isNaN(amount)) return;
+    ChatSystemData.balance -= parseFloat(amount);
+    const box = document.getElementById('msgBox');
+    const card = document.createElement('div');
+    card.className = 'bill-card';
+    card.style.alignSelf = 'flex-end';
+    card.style.background = '#000';
+    card.innerHTML = `
+        <div class="bill-header">转账</div>
+        <div class="bill-body">¥ ${amount}</div>
+        <div class="bill-footer">点击确认收款</div>
+    `;
+    box.appendChild(card);
+};
+
+window.promptLocation = function() {
+    const loc = prompt("输入当前地点:");
+    const dist = prompt("与角色相距 (如：100米):");
+    appendBubble(`(当前位置：${loc}，距离你：${dist})`, 'narration');
+};
+
+// ===== 8. UI 辅助函数 =====
+window.toggleAddMenu = () => document.getElementById('addMenu').classList.toggle('active');
+window.showChatDetail = () => document.getElementById('chatDetailPanel').classList.toggle('active');
+window.togglePeek = () => {
+    const p = document.getElementById('peekWindow');
+    p.style.display = p.style.display === 'block' ? 'none' : 'block';
+};
+function updatePeekUI() {
+    document.getElementById('p-mood').innerText = ChatSystemData.mental.mood;
+    document.getElementById('p-fav').innerText = ChatSystemData.mental.favorability;
+    document.getElementById('p-act').innerText = ChatSystemData.mental.action;
+    document.getElementById('p-tht').innerText = ChatSystemData.mental.thought;
 }
 
-// 兜底方案：如果页面由于某种原因没有触发加载，2秒后强制检查一次
-setTimeout(() => {
-    const chatActive = document.getElementById('chatMainWrap');
-    if (!chatActive) {
-        console.log("执行兜底启动...");
-        initChatSystem();
-    }
-}, 2000);
+// ===== 9. 其他板块简易实现 =====
+function renderContactList(c) {
+    c.innerHTML = `
+        <div style="background:#fff;">
+            <div style="padding:15px; border-bottom:0.5px solid #f0f0f0; font-weight:600;">新的朋友 <span style="float:right; color:#ccc;">></span></div>
+            <div style="background:#f2f2f7; padding:5px 15px; font-size:12px; color:#8e8e93;">Z</div>
+            <div style="padding:15px; display:flex; align-items:center; gap:10px;">
+                <div style="width:36px; height:36px; background:#000; border-radius:8px;"></div>
+                <span>枝玉</span>
+            </div>
+        </div>
+        <div style="position:fixed; right:5px; top:120px; font-size:10px; display:flex; flex-direction:column; gap:2px; font-weight:700;">
+            <span>A</span><span>B</span><span>C</span><span>Z</span><span>#</span>
+        </div>
+    `;
+}
 
-// 其他存根函数，防止调用报错
-window.showAddMenu = function() { alert("1. 加联系人\n2. 创建群聊"); };
-window.renderMomentsFeed = function(v) { v.innerHTML = '<div style="padding:40px; text-align:center; color:#8e8e93;">动态流 (Feed) 加载中...</div>'; };
-window.renderMePage = function(v) { v.innerHTML = '<div style="padding:40px; text-align:center; color:#8e8e93;">个人主页建设中...</div>'; };
+function renderMoments(c) {
+    c.innerHTML = `
+        <div style="height:200px; background:#aaa; position:relative;">
+            <div style="position:absolute; right:15px; bottom:-20px; display:flex; align-items:flex-end; gap:12px;">
+                <span style="color:#fff; text-shadow:0 1px 3px rgba(0,0,0,0.5); font-weight:700; margin-bottom:20px;">用户</span>
+                <div style="width:70px; height:70px; background:#eee; border-radius:12px; border:2px solid #fff;"></div>
+            </div>
+        </div>
+        <div style="padding:40px 20px; color:#8e8e93; text-align:center;">暂无动态</div>
+    `;
+}
+
+function renderMePage(c) {
+    c.innerHTML = `
+        <div style="background:#fff; padding:30px; display:flex; flex-direction:column; align-items:center; border-bottom:0.5px solid #eee;">
+            <div style="width:80px; height:80px; background:#f2f2f7; border-radius:20px; display:flex; align-items:center; justify-content:center; font-size:40px; color:#ccc;">+</div>
+            <div style="margin-top:15px; font-size:20px; font-weight:700;">${ChatSystemData.userName}</div>
+        </div>
+        <div style="margin-top:10px; background:#fff;">
+            <div style="padding:15px; border-bottom:0.5px solid #f0f0f0;">服务 (钱包余额: ${ChatSystemData.balance.toFixed(2)}) <span style="float:right;">></span></div>
+            <div style="padding:15px; border-bottom:0.5px solid #f0f0f0;">收藏 <span style="float:right;">></span></div>
+            <div style="padding:15px;">设置 <span style="float:right;">></span></div>
+        </div>
+    `;
+}
+
+window.clearHistory = () => { if(confirm("确定清空？")) document.getElementById('msgBox').innerHTML = ''; };
