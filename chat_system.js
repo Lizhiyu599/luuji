@@ -1,362 +1,361 @@
 /**
- * 玉界 - 顶级交互聊天系统 (极致细节修复版)
- * 风格：WeChat 结构 + iOS 渐变玻璃
+ * 玉界 - 顶级微信结构 + iOS 玻璃视觉重构版
+ * 修复：导航栏绝对贴底、去双标题、功能逻辑全实装
  */
 
-// ===== 1. 核心状态与数据追踪 =====
+// ===== 1. 核心状态与持久化数据 =====
 window.ChatConfig = {
+    // API 点数实时数据
+    api: {
+        total: parseInt(localStorage.getItem('yujie_api_total')) || 0,
+        online: parseInt(localStorage.getItem('yujie_api_online')) || 0,
+        offline: parseInt(localStorage.getItem('yujie_api_offline')) || 0,
+        image: parseInt(localStorage.getItem('yujie_api_image')) || 0,
+        voice: parseInt(localStorage.getItem('yujie_api_voice')) || 0
+    },
     userAvatar: localStorage.getItem('yujie_user_avatar') || '',
     chatBg: localStorage.getItem('yujie_chat_bg') || '',
-    userName: "用户",
-    // 实时 API 消耗数据
-    apiUsage: { total: 0, online: 0, offline: 0, image: 0, voice: 0 },
-    contacts: [{ id: 'c1', name: '枝玉', avatar: '枝', bio: '开发者', letter: 'Z' }],
-    // 设置项
-    settings: {
-        summaryRounds: 50,
-        narrationOpen: true,
-        pronoun: '我', // 我, 你, ta
-        history: [] // 用于搜索
+    pronoun: localStorage.getItem('yujie_pronoun') || '我', // 我, 你, ta
+    isNarration: localStorage.getItem('yujie_narration') === 'true',
+    summaryCount: 50,
+    wallet: 5200.00
+};
+
+// 更新API点数函数
+window.useApi = (type, points) => {
+    ChatConfig.api.total += points;
+    ChatConfig.api[type] += points;
+    localStorage.setItem('yujie_api_total', ChatConfig.api.total);
+    localStorage.setItem('yujie_api_' + type, ChatConfig.api[type]);
+    if(document.getElementById('api-total-val')) {
+        document.getElementById('api-total-val').innerText = ChatConfig.api.total;
     }
 };
 
-// ===== 2. 样式深度定制 (层级、颜色、渐变) =====
+// ===== 2. CSS 样式：色度分层与交互动画 =====
 const injectAdvancedStyles = () => {
-    const styleId = 'chat-pro-ui-style';
+    const styleId = 'liquid-advanced-ui';
     if (document.getElementById(styleId)) return;
     const s = document.createElement('style');
     s.id = styleId;
     s.innerHTML = `
-        /* 布局逻辑 */
-        .app-root { display: flex; flex-direction: column; height: 100%; background: #f9f9fb; position: relative; overflow: hidden; }
-        .app-header { 
-            flex-shrink: 0; height: 55px; display: flex; justify-content: center; align-items: center; 
-            background: rgba(242, 242, 247, 0.9); backdrop-filter: blur(20px); border-bottom: 0.5px solid rgba(0,0,0,0.05);
-            position: relative; z-index: 100;
+        /* 根布局：三段式 */
+        .chat-root {
+            display: flex; flex-direction: column; height: 100%; width: 100%;
+            background: #fdfdfd; position: relative; overflow: hidden;
         }
-        .app-body { flex: 1; overflow-y: auto; background: #fafafc; padding-bottom: 70px; }
-        .app-tabbar { 
-            position: fixed; bottom: 0; width: 100%; height: 65px; 
-            background: rgba(242, 242, 247, 0.9); backdrop-filter: blur(20px);
-            display: flex; justify-content: space-around; align-items: center; z-index: 100;
+        
+        /* 顶部和底部：深色玻璃 (88px) */
+        .glass-header {
+            height: 88px; flex-shrink: 0; display: flex; align-items: flex-end;
+            justify-content: center; padding-bottom: 12px; position: relative;
+            background: rgba(242, 242, 247, 0.95); backdrop-filter: blur(40px);
+            border-bottom: 0.5px solid rgba(0,0,0,0.05); z-index: 100;
+        }
+        .glass-tabbar {
+            position: fixed; bottom: 0; left: 0; width: 100%; height: 85px;
+            background: rgba(242, 242, 247, 0.95); backdrop-filter: blur(40px);
+            display: flex; justify-content: space-around; align-items: flex-start;
+            padding-top: 10px; border-top: 0.5px solid rgba(0,0,0,0.05);
+            z-index: 100; padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        /* 内容区：浅色护眼 */
+        .scroll-body { flex: 1; overflow-y: auto; background: #fdfdfd; padding-bottom: 100px; }
+
+        .tab-btn { font-size: 14px; color: #8e8e93; font-weight: 500; cursor: pointer; display: flex; flex-direction: column; align-items: center; }
+        .tab-btn.active { color: #000; font-weight: 700; }
+
+        /* 联系人列表：扁平+虚线 */
+        .contact-item {
+            padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+            border-bottom: 0.5px dashed rgba(0,0,0,0.1); background: #fff;
         }
 
-        /* 联系人：极简虚线 */
-        .contact-item { 
-            padding: 12px 16px; display: flex; align-items: center; gap: 12px; background: #fff;
-            border-bottom: 0.5px dashed rgba(0,0,0,0.1); 
-        }
+        /* 聊天气泡 */
+        .bubble { max-width: 78%; padding: 12px 16px; border-radius: 20px; font-size: 15px; line-height: 1.5; margin-bottom: 12px; position: relative; }
+        .bubble-user { align-self: flex-end; background: rgba(255,255,255,0.8); color: #000; backdrop-filter: blur(10px); border: 0.5px solid #fff; border-bottom-right-radius: 4px; }
+        .bubble-assistant { align-self: flex-start; background: rgba(0,0,0,0.8); color: #fff; backdrop-filter: blur(10px); border-bottom-left-radius: 4px; }
+        .narration-text { align-self: center; color: #8e8e93; font-size: 13px; text-align: center; margin: 10px 0; max-width: 90%; }
 
-        /* 聊天窗口：渐变透色 */
-        #chatOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f2f2f7; z-index: 2000; display: none; flex-direction: column; }
-        .chat-head-glass { 
-            background: linear-gradient(to bottom, rgba(242,242,247,0.8), rgba(242,242,247,0.4));
-            backdrop-filter: blur(15px); height: 55px; display: flex; justify-content: space-between; align-items: center; padding: 0 16px;
+        /* 详情半屏：VisionOS 风格 */
+        .half-sheet-mask {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.2); z-index: 500; display: none; opacity: 0; transition: 0.3s;
         }
-        .chat-foot-glass { 
-            background: linear-gradient(to top, rgba(242,242,247,0.8), rgba(242,242,247,0.4));
-            backdrop-filter: blur(15px); padding: 10px 16px 25px; display: flex; align-items: center; gap: 10px;
+        .half-sheet {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 85%;
+            background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(50px);
+            border-top: 0.5px solid rgba(255,255,255,0.5); border-radius: 30px 30px 0 0;
+            transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.2, 1, 0.3, 1); z-index: 600;
         }
+        .half-sheet.active { transform: translateY(0); }
+        .sheet-handle { width: 40px; height: 5px; background: rgba(0,0,0,0.1); border-radius: 3px; margin: 12px auto; }
 
-        /* 半屏面板 */
-        .sheet-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.2); z-index: 2100; display: none; }
-        .bottom-sheet { 
-            position: absolute; bottom: 0; width: 100%; height: 85%; background: rgba(255,255,255,0.6); 
-            backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border-radius: 25px 25px 0 0;
-            transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.2, 1, 0.3, 1); z-index: 2200;
+        /* 2x4 预览框 */
+        .bg-preview-box {
+            width: 100%; height: 120px; border-radius: 12px; background: rgba(255,255,255,0.5);
+            border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center;
+            background-size: cover; background-position: center; font-size: 13px; color: #8e8e93;
         }
-        .bottom-sheet.active { transform: translateY(0); }
-
-        /* 滑块定制：白轨黑点 */
-        .ios-slider { -webkit-appearance: none; width: 100%; height: 4px; background: #fff; border-radius: 2px; outline: none; }
-        .ios-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; background: #000; border-radius: 50%; cursor: pointer; }
 
         /* 状态浮窗 (ᥫ᭡) */
-        .peek-bubble {
-            position: absolute; top: 65px; right: 15px; width: 220px; background: rgba(255,255,255,0.5); 
-            backdrop-filter: blur(30px); border-radius: 20px; padding: 16px; border: 0.5px solid #fff; z-index: 3000; display: none;
+        .status-popup {
+            position: absolute; top: 95px; right: 15px; width: 220px;
+            background: rgba(255, 255, 255, 0.45); backdrop-filter: blur(30px);
+            border-radius: 20px; padding: 18px; z-index: 1000; display: none;
+            border: 1px solid #fff; box-shadow: 0 8px 30px rgba(0,0,0,0.05);
         }
-
-        /* 气泡与旁白 */
-        .bubble { max-width: 75%; padding: 10px 14px; border-radius: 18px; margin-bottom: 10px; font-size: 15px; }
-        .bubble-user { align-self: flex-end; background: #000; color: #fff; }
-        .bubble-assistant { align-self: flex-start; background: #fff; color: #000; border: 0.5px solid #eee; }
-        .narration-text { align-self: center; color: #8e8e93; font-size: 13px; text-align: center; margin: 10px 0; max-width: 90%; }
         
-        /* 危险区按钮 */
-        .btn-danger { background: #fff; color: #ff3b30; border: 1px solid #ff3b30; border-radius: 12px; padding: 12px; font-weight: 700; width: 100%; }
-        .btn-black-rect { background: #000; color: #fff; border: none; border-radius: 12px; padding: 12px; width: 100%; font-weight: 500; }
-        
-        /* 开关 UI */
-        .ios-switch { appearance: none; width: 44px; height: 24px; background: #e9e9ea; border-radius: 12px; position: relative; cursor: pointer; transition: 0.3s; }
-        .ios-switch:checked { background: #34c759; }
-        .ios-switch::after { content:''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: #fff; border-radius: 50%; transition: 0.3s; }
-        .ios-switch:checked::after { transform: translateX(20px); }
+        /* 滑块定制 */
+        .ios-slider { -webkit-appearance: none; width: 100%; height: 4px; background: #fff; border-radius: 2px; }
+        .ios-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; background: #000; border-radius: 50%; cursor: pointer; }
     `;
     document.head.appendChild(s);
 };
 
-// ===== 3. 页面渲染逻辑 =====
+// ===== 3. 初始化与主结构 =====
 window.openApp = function(appName) {
     injectAdvancedStyles();
     const appWindow = document.getElementById('genericAppWindow');
     const appContent = document.getElementById('appContent');
-    if (!appWindow || !appContent) return;
+    const oldTitle = document.getElementById('appTitle');
+    if (oldTitle) oldTitle.style.display = 'none'; // 删掉原有的“应用”字样
 
     appWindow.style.display = 'flex';
     appContent.style.padding = '0';
     appContent.innerHTML = `
-        <div class="app-root">
-            <div class="app-header">
-                <div style="font-weight:700; font-size:17px;" id="headerTitle">聊天</div>
+        <div class="chat-root">
+            <div class="glass-header">
+                <span style="font-size:17px; font-weight:700;" id="centerTitle">聊天</span>
+                <span id="backBtn" onclick="window.closeChatOverlay()" style="position:absolute; left:16px; bottom:12px; font-size:22px; cursor:pointer; display:none;"> < </span>
+                <span id="rightAction" style="position:absolute; right:16px; bottom:12px; font-size:24px; cursor:pointer;">+</span>
             </div>
             
-            <div class="app-body" id="appBody"></div>
+            <div class="scroll-body" id="chatBody"></div>
 
-            <div class="app-tabbar">
-                <div class="tab-item active" onclick="window.switchTab('chats', this)">聊天</div>
-                <div class="tab-item" onclick="window.switchTab('contacts', this)">联系人</div>
-                <div class="tab-item" onclick="window.switchTab('moments', this)">动态</div>
-                <div class="tab-item" onclick="window.switchTab('me', this)">我的</div>
+            <div class="glass-tabbar" id="mainTabBar">
+                <div class="tab-btn active" onclick="window.navTo('chats', this)">聊天</div>
+                <div class="tab-btn" onclick="window.navTo('contacts', this)">联系人</div>
+                <div class="tab-btn" onclick="window.navTo('moments', this)">动态</div>
+                <div class="tab-btn" onclick="window.navTo('me', this)">我的</div>
             </div>
 
-            <div id="chatOverlay"></div>
-            <div class="sheet-mask" id="sheetMask" onclick="window.closeSheet()"></div>
-            <div id="chatSheet" class="bottom-sheet"></div>
-            <input type="file" id="imgPicker" style="display:none" accept="image/*">
+            <!-- 挂载层 -->
+            <div id="fullChatOverlay" style="position:absolute; top:0; left:0; width:100%; height:100%; display:none; flex-direction:column; z-index:200; background:#fdfdfd;"></div>
+            <div id="sheetMask" class="half-sheet-mask" onclick="window.hideSheet()"></div>
+            <div id="detailSheet" class="half-sheet"></div>
+            <input type="file" id="imagePicker" style="display:none" accept="image/*">
         </div>
     `;
-    window.switchTab('chats');
+    window.navTo('chats');
 };
 
-window.switchTab = function(tab, el) {
-    const body = document.getElementById('appBody');
-    const head = document.getElementById('headerTitle');
-    const headerRow = document.querySelector('.app-header');
-    
-    document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-    if (el) el.classList.add('active');
-
-    // 标题逻辑：只有聊天和联系人显示标题
-    headerRow.style.display = (tab === 'chats' || tab === 'contacts') ? 'flex' : 'none';
+// ===== 4. 导航逻辑 =====
+window.navTo = function(tab, el) {
+    const body = document.getElementById('chatBody');
+    const title = document.getElementById('centerTitle');
+    if (el) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+    }
 
     if (tab === 'chats') {
-        head.innerText = "聊天";
-        renderChats(body);
+        title.innerText = "聊天";
+        body.innerHTML = `
+            <div style="padding:10px 0;">
+                <div class="contact-item" onclick="window.enterChat('枝玉')">
+                    <div style="width:50px; height:50px; border-radius:12px; background:#000; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700;">枝</div>
+                    <div style="flex:1;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span style="font-weight:700;">枝玉</span><span style="font-size:12px; color:#c7c7cc;">刚刚</span></div>
+                        <div style="color:#8e8e93; font-size:13px;">你好，我是开发者枝玉。</div>
+                    </div>
+                </div>
+            </div>
+        `;
     } else if (tab === 'contacts') {
-        head.innerText = "联系人";
-        renderContacts(body);
+        title.innerText = "联系人";
+        body.innerHTML = `
+            <div class="contact-item">新的朋友 <span style="margin-left:auto; color:#ccc;">></span></div>
+            <div style="background:#f2f2f7; padding:4px 16px; font-size:11px; color:#8e8e93;">Z</div>
+            <div class="contact-item" onclick="window.enterChat('枝玉')">
+                <div style="width:36px; height:36px; border-radius:4px; background:#000;"></div>
+                <span style="font-weight:600;">枝玉</span>
+            </div>
+        `;
     } else if (tab === 'moments') {
-        renderMoments(body);
+        title.innerText = "";
+        body.innerHTML = `<div style="padding:100px 20px; text-align:center; color:#ccc;">动态功能开发中...</div>`;
     } else if (tab === 'me') {
-        renderMe(body);
+        title.innerText = "";
+        body.innerHTML = `<div style="padding:100px 20px; text-align:center; color:#ccc;">我的功能开发中...</div>`;
     }
 };
 
-// 渲染联系人
-function renderContacts(container) {
-    container.innerHTML = `
-        <div style="background:#fff;">
-            <div class="contact-item">
-                <div style="width:40px;height:40px;background:#fa9d3b;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;">👤</div>
-                <span style="font-weight:500;">新的朋友</span>
-            </div>
-            <div style="background:#fafafc; padding:4px 16px; font-size:11px; color:#8e8e93;">Z</div>
-            <div class="contact-item" onclick="window.enterChat('枝玉')">
-                <div style="width:40px;height:40px;background:#000;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;">枝</div>
-                <span style="font-weight:500;">枝玉</span>
-            </div>
-        </div>
-    `;
-}
-
-// ===== 4. 聊天窗口逻辑 (透色渐变) =====
+// ===== 5. 聊天界面逻辑 =====
 window.enterChat = function(name) {
-    const overlay = document.getElementById('chatOverlay');
+    const overlay = document.getElementById('fullChatOverlay');
     overlay.style.display = 'flex';
     overlay.innerHTML = `
-        <div class="chat-head-glass">
-            <span onclick="window.closeChat()" style="cursor:pointer; font-size:22px;"> < </span>
-            <div style="font-weight:700; cursor:pointer;" onclick="window.openSheet()">${name}</div>
-            <span onclick="window.togglePeek()" style="cursor:pointer; font-size:20px;">ᥫ᭡</span>
+        <div class="glass-header" id="chatHeader" style="background: rgba(242, 242, 247, 0.7);">
+            <span onclick="window.closeChatOverlay()" style="position:absolute; left:16px; bottom:12px; font-size:22px; cursor:pointer;"> < </span>
+            <div style="text-align:center; cursor:pointer;" onclick="window.showDetailSheet()">
+                <div style="font-weight:700; font-size:17px;">${name}</div>
+                <div id="chatStatus" style="font-size:10px; color:#8e8e93; display:none;">输入中…</div>
+            </div>
+            <span onclick="window.toggleStatusPopup()" style="position:absolute; right:16px; bottom:12px; font-size:22px; cursor:pointer;">ᥫ᭡</span>
         </div>
         
-        <div id="msgFlow" style="flex:1; overflow-y:auto; padding:20px 16px; display:flex; flex-direction:column; 
-             background-size:cover; background-position:center; background-image:url(${ChatConfig.chatBg});">
+        <div id="msgFlow" style="flex:1; overflow-y:auto; padding:20px 16px; display:flex; flex-direction:column; background-size:cover; background-position:center; background-image:url(${ChatConfig.chatBg});">
+            <div class="narration-text">iMessage 加密对话</div>
         </div>
 
-        <div class="chat-foot-glass">
-            <div style="width:28px;height:28px;border:1.5px solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;" onclick="alert('更多功能')">+</div>
-            <input type="text" id="chatIn" style="flex:1; border:none; background:#fff; border-radius:18px; padding:10px 14px; outline:none;" placeholder="输入消息…" onkeypress="if(event.key==='Enter') window.send()">
-            <div style="font-size:22px; font-weight:300; cursor:pointer;" onclick="window.send()">+</div>
+        <div id="inputBar" style="padding:10px 16px 30px; background:rgba(242, 242, 247, 0.8); backdrop-filter:blur(30px); border-top:0.5px solid rgba(0,0,0,0.05); display:flex; align-items:center; gap:12px;">
+            <div style="width:28px; height:28px; border:1px solid #000; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;">+</div>
+            <input type="text" id="wxInput" style="flex:1; border:none; background:#fff; border-radius:18px; padding:10px 14px; outline:none;" placeholder="输入消息…" onkeypress="if(event.key==='Enter') window.sendMessage()">
+            <div style="font-size:22px; cursor:pointer;">∧</div>
+            <div style="font-size:26px; cursor:pointer;" onclick="window.sendMessage()">+</div>
         </div>
 
-        <div id="peek" class="peek-bubble" onclick="this.style.display='none'">
-            <div style="font-weight:800; font-size:14px; margin-bottom:10px;">窥视ta...</div>
-            <div style="font-size:11px; color:#8e8e93;">心情</div><div id="pk-mood" style="font-size:13px;">${ChatConfig.mental.mood}</div><div style="border-bottom:0.5px dashed #ddd;margin:6px 0;"></div>
-            <div style="font-size:11px; color:#8e8e93;">好感值</div><div id="pk-fav" style="font-size:13px;">${ChatConfig.mental.favorability}</div><div style="border-bottom:0.5px dashed #ddd;margin:6px 0;"></div>
-            <div style="font-size:11px; color:#8e8e93;">当前动作</div><div id="pk-act" style="font-size:13px;">${ChatConfig.mental.action}</div><div style="border-bottom:0.5px dashed #ddd;margin:6px 0;"></div>
-            <div style="font-size:11px; color:#8e8e93;">内心想法</div><div id="pk-tht" style="font-size:13px;">${ChatConfig.mental.thought}</div>
+        <div id="statusPopup" class="status-popup" onclick="this.style.display='none'">
+            <div style="font-weight:800; font-size:15px; margin-bottom:10px;">窥视ta...</div>
+            <div style="font-size:11px; color:#8e8e93;">心情</div><div style="font-size:13px;">期待</div><div style="border-bottom:0.5px dashed #ddd; margin:8px 0;"></div>
+            <div style="font-size:11px; color:#8e8e93;">好感值</div><div style="font-size:13px;">85</div><div style="border-bottom:0.5px dashed #ddd; margin:8px 0;"></div>
+            <div style="font-size:11px; color:#8e8e93;">当前动作</div><div style="font-size:13px;">查看对话框</div><div style="border-bottom:0.5px dashed #ddd; margin:8px 0;"></div>
+            <div style="font-size:11px; color:#8e8e93;">内心想法</div><div style="font-size:13px;">希望回复让你满意</div>
         </div>
     `;
-    renderSheet(); // 预渲染半屏
 };
 
-// ===== 5. 聊天详情半屏 (拖动关闭 & 实时数据) =====
-function renderSheet() {
-    const sheet = document.getElementById('chatSheet');
+window.closeChatOverlay = () => { document.getElementById('fullChatOverlay').style.display = 'none'; };
+
+window.sendMessage = () => {
+    const input = document.getElementById('wxInput');
+    const flow = document.getElementById('msgFlow');
+    if (!input.value.trim()) return;
+
+    const div = document.createElement('div');
+    const isNar = input.value.startsWith('(') || input.value.startsWith('（');
+    div.className = isNar ? 'narration-text' : 'bubble bubble-user';
+    div.innerText = input.value;
+    flow.appendChild(div);
+    input.value = '';
+    flow.scrollTop = flow.scrollHeight;
+    
+    window.useApi('online', 10);
+};
+
+// ===== 6. 详情面板逻辑 (Bottom Sheet) =====
+window.showDetailSheet = function() {
+    const sheet = document.getElementById('detailSheet');
+    const mask = document.getElementById('sheetMask');
+    mask.style.display = 'block';
+    setTimeout(() => { mask.style.opacity = '1'; sheet.classList.add('active'); }, 10);
+
+    const bgPreview = ChatConfig.chatBg ? `background-image:url(${ChatConfig.chatBg})` : '';
+
     sheet.innerHTML = `
-        <div style="height:40px; display:flex; justify-content:center; align-items:center; cursor:pointer;" id="sheetHandle">
-            <div style="width:36px; height:5px; background:rgba(0,0,0,0.1); border-radius:3px;"></div>
-        </div>
-        <div style="padding:0 24px 40px; overflow-y:auto; height:calc(100% - 40px);">
-            <div style="font-size:20px; font-weight:800; margin-bottom:20px;">聊天详情</div>
+        <div class="sheet-handle"></div>
+        <div style="padding:0 25px 50px; overflow-y:auto; height:100%;" onscroll="handleSheetScroll(this)">
+            <div style="font-size:20px; font-weight:800; margin:10px 0 20px;">聊天详情</div>
             
             <!-- API 面板 -->
-            <div style="background:rgba(255,255,255,0.6); padding:16px; border-radius:18px; margin-bottom:15px; border:0.5px solid #fff;">
-                <div style="font-size:11px; color:#8e8e93; margin-bottom:12px;">实时 API 消耗</div>
-                <div style="font-size:14px; line-height:1.8;">
-                    全部点数：<span id="st-total">${ChatConfig.apiUsage.total}</span><br>
-                    线上聊天：<span id="st-online">${ChatConfig.apiUsage.online}</span> | 线下聊天：${ChatConfig.apiUsage.offline}<br>
-                    生成图片：${ChatConfig.apiUsage.image} | 语音：${ChatConfig.apiUsage.voice}
-                </div>
-            </div>
-
-            <!-- 搜索 -->
-            <div style="margin-bottom:15px;">
-                <input type="text" id="searchInput" placeholder="搜索聊天记录…" style="width:100%; border:none; background:rgba(255,255,255,0.8); border-radius:14px; padding:12px;" oninput="window.searchChat(this.value)">
-                <div id="searchResults" style="margin-top:8px; display:none; background:rgba(255,255,255,0.4); border-radius:12px; padding:10px; font-size:13px;"></div>
-            </div>
-
-            <!-- AI 总结 -->
-            <div style="background:rgba(255,255,255,0.6); padding:16px; border-radius:18px; margin-bottom:15px; border:0.5px solid #fff;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
-                    <span>AI 自动总结</span> <span style="font-weight:700;" id="sumVal">${ChatConfig.settings.summaryRounds}</span>
-                </div>
-                <input type="range" min="10" max="200" value="${ChatConfig.settings.summaryRounds}" class="ios-slider" oninput="window.updateSlider(this.value)">
-                <button class="btn-black-rect" style="margin-top:15px;" onclick="alert('总结已存入拾忆林')">手动总结</button>
-            </div>
-
-            <!-- 背景设置 -->
-            <div style="background:rgba(255,255,255,0.6); padding:16px; border-radius:18px; margin-bottom:15px;">
-                <div style="font-size:11px; color:#8e8e93; margin-bottom:10px;">聊天背景设置</div>
-                <div id="bgPreview" style="width:100%; height:80px; background:#f2f2f7; border-radius:12px; border:1px dashed #ccc; display:flex; align-items:center; justify-content:center; color:#ccc; background-size:cover; background-position:center; background-image:url(${ChatConfig.chatBg});" onclick="window.pickBg()">
-                    ${!ChatConfig.chatBg ? '2×4 选取背景' : ''}
-                </div>
-                <button style="margin-top:10px; background:none; border:none; color:#ff3b30; font-size:13px; font-weight:700; width:100%; text-align:center;" onclick="window.clearBg()">清除背景图</button>
-            </div>
-
-            <!-- 旁白 & 人称 -->
-            <div style="background:rgba(255,255,255,0.6); padding:16px; border-radius:18px; margin-bottom:15px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span>开启旁白生成</span>
-                    <input type="checkbox" class="ios-switch" ${ChatConfig.settings.narrationOpen ? 'checked' : ''} onchange="ChatConfig.settings.narrationOpen = this.checked">
-                </div>
-                <div style="margin-top:15px; border-top:0.5px solid rgba(0,0,0,0.05); padding-top:15px;">
-                    <div style="font-size:11px; color:#8e8e93; margin-bottom:10px;">人称选择 (用于旁白)</div>
-                    <div style="display:flex; justify-content:space-around;">
-                        <label><input type="radio" name="p-sel" onclick="ChatConfig.settings.pronoun='我'" checked> 我</label>
-                        <label><input type="radio" name="p-sel" onclick="ChatConfig.settings.pronoun='你'"> 你</label>
-                        <label><input type="radio" name="p-sel" onclick="ChatConfig.settings.pronoun='ta'"> ta</label>
+            <div style="background:rgba(255,255,255,0.6); padding:16px; border-radius:18px; margin-bottom:15px; border:1px solid #fff;">
+                <div style="color:#8e8e93; font-size:11px; margin-bottom:10px;">API消耗面板</div>
+                <div style="font-size:14px; line-height:2;">
+                    <div style="display:flex; justify-content:space-between;"><span>全部点数</span> <span id="api-total-val" style="font-weight:700;">${ChatConfig.api.total}</span></div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:12px; color:#555; margin-top:5px;">
+                        <span>线上: ${ChatConfig.api.online}</span> <span>线下: ${ChatConfig.api.offline}</span>
+                        <span>生图: ${ChatConfig.api.image}</span> <span>语音: ${ChatConfig.api.voice}</span>
                     </div>
                 </div>
             </div>
 
-            <!-- 危险区 -->
-            <div style="margin-top:20px;">
-                <div style="display:flex; justify-content:space-between; color:#ff3b30; font-weight:700;" onclick="window.toggleDanger()">
+            <!-- 搜索 -->
+            <div style="margin-bottom:15px; position:relative;">
+                <input type="text" placeholder="搜索聊天记录…" style="width:100%; border:none; background:#fff; padding:12px; border-radius:12px; outline:none;" oninput="window.doSearch(this.value)">
+                <div id="searchRes" style="display:none; background:rgba(255,255,255,0.8); border-radius:12px; margin-top:5px; padding:10px; font-size:13px; color:#8e8e93;"></div>
+            </div>
+
+            <!-- 总结 -->
+            <div style="background:rgba(255,255,255,0.6); padding:16px; border-radius:18px; margin-bottom:15px; border:1px solid #fff;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="font-weight:600;">AI总结</span> <span id="sum-val" style="font-size:13px; color:#8e8e93;">50轮</span>
+                </div>
+                <input type="range" class="ios-slider" min="10" max="200" value="${ChatConfig.summaryCount}" oninput="window.updateSum(this.value)">
+                <button style="width:100%; height:44px; background:#000; color:#fff; border:none; border-radius:12px; margin-top:15px; font-weight:700;" onclick="alert('总结已存入拾忆林')">手动总结</button>
+            </div>
+
+            <!-- 背景设置 -->
+            <div style="background:rgba(255,255,255,0.6); padding:16px; border-radius:18px; margin-bottom:15px; border:1px solid #fff;">
+                <div style="color:#8e8e93; font-size:11px; margin-bottom:10px;">聊天背景设置</div>
+                <div class="bg-preview-box" id="bgPreview" style="${bgPreview}" onclick="window.pickChatBg()">
+                    ${!ChatConfig.chatBg ? '点击上传背景 (2x4)' : ''}
+                </div>
+                <button style="width:100%; height:44px; background:#ff3b30; color:#fff; border:none; border-radius:12px; margin-top:10px; font-weight:700;" onclick="window.clearChatBg()">清除背景图</button>
+            </div>
+
+            <!-- 旁白 & 人称 -->
+            <div style="background:rgba(255,255,255,0.6); padding:16px; border-radius:18px; margin-bottom:15px; border:1px solid #fff;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>线上聊天旁白</span>
+                    <input type="checkbox" ${ChatConfig.isNarration ? 'checked' : ''} onchange="ChatConfig.isNarration=this.checked; localStorage.setItem('yujie_narration', this.checked)">
+                </div>
+                <div style="height:1px; background:rgba(0,0,0,0.05); margin:12px 0;"></div>
+                <div style="font-size:11px; color:#8e8e93; margin-bottom:10px;">人称选择 (用于旁白)</div>
+                <div style="display:flex; justify-content:space-around;">
+                    <span onclick="window.setPronoun('我')" style="${ChatConfig.pronoun==='我'?'font-weight:700;color:#000':'color:#8e8e93'}">我</span>
+                    <span onclick="window.setPronoun('你')" style="${ChatConfig.pronoun==='你'?'font-weight:700;color:#000':'color:#8e8e93'}">你</span>
+                    <span onclick="window.setPronoun('ta')" style="${ChatConfig.pronoun==='ta'?'font-weight:700;color:#000':'color:#8e8e93'}">ta</span>
+                </div>
+            </div>
+
+            <!-- 危险区 (危险区折叠逻辑) -->
+            <div style="padding:16px; border-radius:18px; border:1px solid #ffd6d6; background:#fff5f5;" onclick="window.toggleDangerZone()">
+                <div style="display:flex; justify-content:space-between; color:#ff3b30; font-weight:700;">
                     <span>危险区</span> <span id="dangerArrow">></span>
                 </div>
-                <div id="dangerZone" style="display:none; margin-top:15px; display:flex; flex-direction:column; gap:10px;">
-                    <button class="btn-danger" onclick="window.clearChat()">清空聊天记录</button>
-                    <button class="btn-black-rect" style="background:#000;">拉黑联系人</button>
-                    <button class="btn-danger" style="background:#fff;">删除联系人</button>
+                <div id="dangerZone" style="display:none; margin-top:15px; flex-direction:column; gap:10px;">
+                    <button style="width:100%; padding:12px; border:1px solid #ff3b30; background:#fff; color:#ff3b30; border-radius:10px;" onclick="alert('清空成功')">清空聊天记录</button>
+                    <button style="width:100%; padding:12px; border:none; background:#000; color:#fff; border-radius:10px;">拉黑联系人</button>
                 </div>
             </div>
         </div>
     `;
-
-    // 绑定拖动下滑关闭
-    const handle = document.getElementById('sheetHandle');
-    let startY = 0;
-    handle.ontouchstart = e => startY = e.touches[0].clientY;
-    handle.ontouchmove = e => {
-        let delta = e.touches[0].clientY - startY;
-        if (delta > 100) window.closeSheet();
-    };
-}
-
-// ===== 6. 交互逻辑补全 =====
-window.send = function() {
-    const input = document.getElementById('chatIn');
-    const flow = document.getElementById('msgFlow');
-    const text = input.value.trim();
-    if (!text) return;
-
-    // 记录历史用于搜索
-    ChatConfig.settings.history.push(text);
-    appendMsg(flow, 'user', text);
-    input.value = '';
-
-    // 增加 API 消耗 (示例)
-    ChatConfig.apiUsage.total += 10;
-    ChatConfig.apiUsage.online += 10;
-    updateAPIUI();
-
-    setTimeout(() => {
-        const reply = "好的。";
-        ChatConfig.settings.history.push(reply);
-        appendMsg(flow, 'assistant', reply);
-    }, 1000);
 };
 
-function appendMsg(box, role, text) {
-    const div = document.createElement('div');
-    const isNar = text.startsWith('(') || text.startsWith('（');
-    if (isNar) {
-        div.className = 'narration-text';
-        div.innerText = text;
-    } else {
-        div.className = `bubble bubble-${role}`;
-        div.innerText = text;
-    }
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-}
-
-window.updateAPIUI = function() {
-    if (document.getElementById('st-total')) {
-        document.getElementById('st-total').innerText = ChatConfig.apiUsage.total;
-        document.getElementById('st-online').innerText = ChatConfig.apiUsage.online;
-    }
+window.hideSheet = () => {
+    const sheet = document.getElementById('detailSheet');
+    const mask = document.getElementById('sheetMask');
+    sheet.classList.remove('active');
+    mask.style.opacity = '0';
+    setTimeout(() => { mask.style.display = 'none'; }, 300);
 };
 
-window.updateSlider = val => {
-    ChatConfig.settings.summaryRounds = val;
-    document.getElementById('sumVal').innerText = val;
+// 功能函数
+window.updateSum = (v) => { ChatConfig.summaryCount = v; document.getElementById('sum-val').innerText = v + '轮'; };
+window.setPronoun = (p) => { ChatConfig.pronoun = p; localStorage.setItem('yujie_pronoun', p); window.showDetailSheet(); };
+window.toggleDangerZone = () => {
+    const dz = document.getElementById('dangerZone');
+    const arrow = document.getElementById('dangerArrow');
+    dz.style.display = dz.style.display === 'none' ? 'flex' : 'none';
+    arrow.innerText = dz.style.display === 'none' ? '>' : '∨';
 };
 
-window.searchChat = val => {
-    const resBox = document.getElementById('searchResults');
-    if (!val) { resBox.style.display = 'none'; return; }
-    const matches = ChatConfig.settings.history.filter(h => h.includes(val));
-    resBox.style.display = 'block';
-    resBox.innerHTML = matches.length ? matches.map(m => `<div style="padding:4px 0; border-bottom:0.5px solid rgba(0,0,0,0.05);">${m}</div>`).join('') : '未找到相关记录';
-};
-
-window.pickBg = () => {
-    const p = document.getElementById('imgPicker');
-    p.onchange = e => {
+window.pickChatBg = () => {
+    const p = document.getElementById('imagePicker');
+    p.onchange = (e) => {
         const file = e.target.files[0];
         if (file) {
             const r = new FileReader();
-            r.onload = ev => {
+            r.onload = (ev) => {
                 const data = ev.target.result;
                 ChatConfig.chatBg = data;
                 localStorage.setItem('yujie_chat_bg', data);
                 document.getElementById('bgPreview').style.backgroundImage = `url(${data})`;
                 document.getElementById('bgPreview').innerText = '';
-                document.getElementById('msgFlow').style.backgroundImage = `url(${data})`;
+                const flow = document.getElementById('msgFlow');
+                if(flow) flow.style.backgroundImage = `url(${data})`;
             };
             r.readAsDataURL(file);
         }
@@ -364,39 +363,23 @@ window.pickBg = () => {
     p.click();
 };
 
-window.clearBg = () => {
+window.clearChatBg = () => {
     ChatConfig.chatBg = '';
     localStorage.removeItem('yujie_chat_bg');
     document.getElementById('bgPreview').style.backgroundImage = '';
-    document.getElementById('bgPreview').innerText = '2×4 选取背景';
-    document.getElementById('msgFlow').style.backgroundImage = '';
+    document.getElementById('bgPreview').innerText = '点击上传背景 (2x4)';
+    const flow = document.getElementById('msgFlow');
+    if(flow) flow.style.backgroundImage = '';
 };
 
-window.openSheet = () => {
-    document.getElementById('sheetMask').style.display = 'block';
-    document.getElementById('chatSheet').classList.add('active');
+window.doSearch = (val) => {
+    const res = document.getElementById('searchRes');
+    if(!val) { res.style.display = 'none'; return; }
+    res.style.display = 'block';
+    res.innerHTML = `<div style="background:rgba(0,0,0,0.03); padding:8px; border-radius:8px;">搜索结果："${val}" 相关内容</div>`;
 };
-window.closeSheet = () => {
-    document.getElementById('sheetMask').style.display = 'none';
-    document.getElementById('chatSheet').classList.remove('active');
-};
-window.closeChat = () => document.getElementById('chatOverlay').style.display = 'none';
-window.togglePeek = () => {
-    const p = document.getElementById('peek');
+
+window.toggleStatusPopup = () => {
+    const p = document.getElementById('statusPopup');
     p.style.display = p.style.display === 'block' ? 'none' : 'block';
 };
-window.toggleDanger = () => {
-    const z = document.getElementById('dangerZone');
-    const a = document.getElementById('dangerArrow');
-    const isHidden = z.style.display === 'none';
-    z.style.display = isHidden ? 'flex' : 'none';
-    a.innerText = isHidden ? '∨' : '>';
-};
-window.clearChat = () => { if(confirm("确定清空记录？")) document.getElementById('msgFlow').innerHTML = ''; };
-
-// 存根
-function renderChats(c) { c.innerHTML = '<div style="padding:15px;"><div class="contact-item" style="border-radius:12px;border:none;box-shadow:0 4px 12px rgba(0,0,0,0.03);" onclick="window.enterChat(\'枝玉\')"><div style="width:40px;height:40px;background:#000;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;">枝</div><div style="flex:1;"><div style="font-weight:700;">枝玉</div><div style="font-size:12px;color:#8e8e93;">你好，我是开发者枝玉。</div></div></div></div>'; }
-function renderMoments(c) { c.innerHTML = '<div style="height:200px;background:#ddd;display:flex;align-items:center;justify-content:center;color:#8e8e93;">动态流加载中...</div>'; }
-function renderMe(c) { c.innerHTML = '<div style="padding:40px;text-align:center;"><div style="width:80px;height:80px;background:#eee;border-radius:20px;margin:0 auto 15px;"></div><div style="font-size:20px;font-weight:700;">用户</div></div>'; }
-
-console.log("玉界：WeChat风极简系统修复完毕。");
