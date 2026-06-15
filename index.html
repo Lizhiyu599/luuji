@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
     <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="玉界机">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>玉界</title>
 <style>
@@ -1223,16 +1226,15 @@ async function sendChatMessage() {
     if(!endpoint.endsWith('/chat/completions')) {
         endpoint = endpoint.replace(/\/+$/, '') + '/chat/completions';
     }
-
     const loadingId = appendMessage('system', '正在思考...');
     
-    const sysPrompt = `你现在扮演一个角色。
-严格遵守以下规则：
-1. 回复禁止一句话超过20字。禁止使用一切emoji。
-2. 每次回复必须在最后附加一段严格的JSON格式状态信息，格式必须为：
-{"mood":"心情(10字内)","favorability":好感度数字(0-100),"action":"动作(20字内)","thought":"内心想法(30字内)"}
-3. 如果用户发送的内容在括号()或（）内，代表旁白，请做出相应反应。`;
-
+    // --- 接入 ai_behavior.js 活人感指令 ---
+    // 这里的 "current_char_setting" 可以是你以后在设置里让用户填写的角色背景，如果没有填，默认是开发者枝玉
+    const userDefinedSetting = localStorage.getItem('current_char_setting') || "你是一个名叫枝玉的开发者。";
+    
+    // 调用我们在 ai_behavior.js 里写的函数来生成最终指令
+    const sysPrompt = window.getSystemPrompt ? window.getSystemPrompt(userDefinedSetting) : "加载核心规则失败，请以人类视角回复。";
+    
     try {
         const response = await fetch(endpoint, {
             method: 'POST',
@@ -1358,8 +1360,6 @@ window.onload = () => {
 };
     </script>
  <script src="ai_behavior.js"></script>
-<script src="./js/notify.js"></script>
-<script src="./js/core/router.js"></script>
 <script src="./js/system/settings.js"></script>
 <script src="chat_system.js"></script>
 </body>
