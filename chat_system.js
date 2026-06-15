@@ -246,6 +246,7 @@ window.navTo = (t, el) => {
 window.enterChat = (name) => {
     const layer = document.getElementById('chatOverlay');
     layer.style.display = 'flex';
+    
     layer.innerHTML = `
         <header class="chat-nav" style="background:rgba(255,255,255,0.4);">
             <div class="nav-status"></div><div class="nav-body">
@@ -281,44 +282,117 @@ window.enterChat = (name) => {
         <div class="sheet-mask" id="sheetMask" onclick="window.toggleSheet(false)">
             <div class="half-sheet" id="detailSheet" onclick="event.stopPropagation()">
                 <div class="sheet-handle"><div class="handle-bar"></div></div>
-                <div class="sheet-content">
-                    <div style="font-size:22px; font-weight:800; margin:10px 0 20px;">聊天详情</div>
+                <div class="sheet-content" style="padding: 0 16px 100px;">
+                    <div style="font-size:24px; font-weight:800; margin:10px 0 20px; color:#000;">聊天详情</div>
                     
-                    <div class="glass-group">
-                        <div class="hint-text" style="margin-bottom:8px;">API 消耗详情 (token)</div>
-                        <div style="font-size:14px; font-weight:700; margin-bottom:10px;">全部点数: <span id="api-disp">${ChatConfig.settings.api.total}</span></div>
-                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span class="hint-text">线上: ${ChatConfig.settings.api.online}</span><span class="hint-text">线下: ${ChatConfig.settings.api.offline}</span></div>
-                        <div style="display:flex; justify-content:space-between;"><span class="hint-text">生图: ${ChatConfig.settings.api.image}</span><span class="hint-text">语音: ${ChatConfig.settings.api.voice}</span></div>
+                    <!-- 1. API 消耗详情 -->
+                    <div class="glass-group" style="background:rgba(255,255,255,0.6); border-radius:24px; padding:16px;">
+                        <div style="font-size:18px; font-weight:800; margin-bottom:12px;">API 消耗详情</div>
+                        <div style="margin-bottom:10px; font-size:14px; color:rgba(0,0,0,0.5);">全部点数：<span style="color:#000; font-weight:700;">${ChatConfig.settings.api.total} token</span></div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                            <span style="font-size:13px; color:rgba(0,0,0,0.5);">线上：${ChatConfig.settings.api.online} token</span>
+                            <span style="font-size:13px; color:rgba(0,0,0,0.5);">线下：${ChatConfig.settings.api.offline} token</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between;">
+                            <span style="font-size:13px; color:rgba(0,0,0,0.5);">生图：${ChatConfig.settings.api.image} token</span>
+                            <span style="font-size:13px; color:rgba(0,0,0,0.5);">语音：${ChatConfig.settings.api.voice} token</span>
+                        </div>
                     </div>
 
-                    <div style="margin-bottom:15px;"><input type="text" placeholder="搜索聊天记录…" style="width:100%; border:none; background:#fff; border-radius:12px; padding:14px;" oninput="window.doSearch(this.value)"><div id="searchRes" style="background:rgba(255,255,255,0.2); border-radius:12px; margin-top:8px; padding:10px; display:none;"></div></div>
+                    <!-- 2. 搜索聊天记录 -->
+                    <div class="glass-group" style="background:rgba(255,255,255,0.6); border-radius:24px; padding:16px; margin-top:16px;">
+                        <div style="font-size:18px; font-weight:800; margin-bottom:12px;">搜索聊天记录</div>
+                        <input type="text" class="chat-inp-box" placeholder="请输入内容…" style="width:100%; background:rgba(255,255,255,0.8); border:1px solid rgba(0,0,0,0.05);" oninput="window.doSearch(this.value)">
+                        <div id="searchRes" style="background:rgba(255,255,255,0.4); border-radius:12px; margin-top:10px; padding:10px; display:none; font-size:13px; color:rgba(0,0,0,0.6);"></div>
+                    </div>
 
-                    <div class="glass-group">
-                        <div class="item-row"><span>AI 总结</span> <span id="summ-val" class="hint-text">${ChatConfig.settings.summaryCount}轮</span></div>
+                    <!-- 3. 聊天总结 -->
+                    <div class="glass-group" style="background:rgba(255,255,255,0.6); border-radius:24px; padding:16px; margin-top:16px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:18px; font-weight:800;">聊天总结</span>
+                            <span id="summ-val" style="font-weight:700;">${ChatConfig.settings.summaryCount}</span>
+                        </div>
+                        <div style="font-size:11px; color:#8e8e93; margin:8px 0;">提示：默认50轮自动总结，你可调自动总结轮数又或是手动总结。</div>
                         <input type="range" min="10" max="200" value="${ChatConfig.settings.summaryCount}" class="ios-slider" oninput="window.updateSet('summaryCount', this.value, 'summ-val')">
-                        <button class="black-btn">手动总结</button>
+                        <button class="black-btn" style="margin-top:10px;" onclick="window.manualSummary()">手动总结</button>
                     </div>
 
-                    <div class="glass-group">
-                        <div class="hint-text" style="margin-bottom:10px;">聊天背景图</div>
-                        <div class="bg-preview-2x4" id="bgPrev" style="background-image:url(${ChatConfig.chatBg});" onclick="window.pickBg()">${!ChatConfig.chatBg ? '点击上传背景' : ''}</div>
-                        <div style="background:#ff3b30; color:#fff; border-radius:12px; padding:12px; text-align:center; margin-top:10px; font-weight:700;" onclick="window.clearBg()">清除背景图</div>
+                    <!-- 4. 聊天背景图 -->
+                    <div class="glass-group" style="background:rgba(255,255,255,0.6); border-radius:24px; padding:16px; margin-top:16px;">
+                        <div style="font-size:18px; font-weight:800; margin-bottom:12px;">聊天背景图</div>
+                        <div class="bg-preview-2x4" id="bgPrev" style="background-image:url(${ChatConfig.chatBg}); height:120px; background-color:#fff; border:1px dashed rgba(0,0,0,0.1); display:flex; align-items:center; justify-content:center; color:#8e8e93;" onclick="window.pickBg()">
+                            ${ChatConfig.chatBg ? '' : '点击添加聊天背景图'}
+                        </div>
+                        <button class="black-btn" style="margin-top:12px;" onclick="window.clearBg()">清除当前背景</button>
                     </div>
 
-                    <div class="glass-group">
-                        <div class="item-row"><span>开启旁白</span> <input type="checkbox" class="custom-switch" ${ChatConfig.settings.onlineNarration?'checked':''} onchange="window.setSet('onlineNarration', this.checked)"></div>
+                    <!-- 5. 角色信息条数 -->
+                    <div class="glass-group" style="background:rgba(255,255,255,0.6); border-radius:24px; padding:16px; margin-top:16px;">
+                        <div style="font-size:18px; font-weight:800; margin-bottom:12px;">角色信息条数</div>
+                        <div style="display:flex; justify-content:space-between; font-size:13px; color:#8e8e93;"><span>提示：回复最少</span><span id="reply-min-val" style="color:#000; font-weight:700;">${ChatConfig.settings.replyMin}</span></div>
+                        <input type="range" min="1" max="10" value="${ChatConfig.settings.replyMin}" class="ios-slider" oninput="window.updateSet('replyMin', this.value, 'reply-min-val')">
+                        
+                        <div style="display:flex; justify-content:space-between; font-size:13px; color:#8e8e93; margin-top:12px;"><span>提示：回复最多</span><span id="reply-max-val" style="color:#000; font-weight:700;">${ChatConfig.settings.replyMax}</span></div>
+                        <input type="range" min="1" max="10" value="${ChatConfig.settings.replyMax}" class="ios-slider" oninput="window.updateSet('replyMax', this.value, 'reply-max-val')">
                     </div>
 
-                    <div class="glass-group">
-                        <div class="item-row"><span>自动翻译</span> <input type="checkbox" class="custom-switch" ${ChatConfig.settings.autoTranslate?'checked':''} onchange="window.setSet('autoTranslate', this.checked)"></div>
-                        <div class="hint-text">提示：非简体中文语言都将翻译成简体中文。</div>
+                    <!-- 6. 线上聊天旁白 -->
+                    <div class="glass-group" style="background:rgba(255,255,255,0.6); border-radius:24px; padding:16px; margin-top:16px;">
+                        <div class="item-row">
+                            <span style="font-size:18px; font-weight:800;">线上聊天旁白</span>
+                            <input type="checkbox" class="custom-switch" ${ChatConfig.settings.onlineNarration?'checked':''} onchange="window.setSet('onlineNarration', this.checked)">
+                        </div>
                     </div>
 
-                    <div class="glass-group">
-                        <div class="danger-fold" onclick="window.toggleDanger()">危险区 <span class="danger-icon" id="danger-ic">></span></div>
-                        <div class="danger-content" id="dangerZone">
-                            <button style="background:#fff; color:#ff3b30; border:none; border-radius:12px; padding:12px; width:100%; margin-bottom:10px;" onclick="window.clearLog()">清空聊天记录</button>
-                            <button class="black-btn">拉黑联系人</button>
+                    <!-- 7. 人称选择 -->
+                    <div class="glass-group" style="background:rgba(255,255,255,0.6); border-radius:24px; padding:16px; margin-top:16px;">
+                        <div style="font-size:18px; font-weight:800; margin-bottom:4px;">人称选择</div>
+                        <div style="font-size:11px; color:#8e8e93; margin-bottom:12px;">提示：用于聊天中的线上线下旁白。</div>
+                        <div class="item-row" style="margin-bottom:10px;"><span>第一人称“我”</span><input type="radio" name="pronoun" class="custom-switch" ${ChatConfig.settings.pronoun=='me'?'checked':''} onclick="window.setSet('pronoun','me')"></div>
+                        <div class="item-row" style="margin-bottom:10px;"><span>第二人称“你”</span><input type="radio" name="pronoun" class="custom-switch" ${ChatConfig.settings.pronoun=='you'?'checked':''} onclick="window.setSet('pronoun','you')"></div>
+                        <div class="item-row"><span>第三人称“ta”</span><input type="radio" name="pronoun" class="custom-switch" ${ChatConfig.settings.pronoun=='ta'?'checked':''} onclick="window.setSet('pronoun','ta')"></div>
+                    </div>
+
+                    <!-- 8. 自动发消息 -->
+                    <div class="glass-group" style="background:rgba(255,255,255,0.6); border-radius:24px; padding:16px; margin-top:16px;">
+                        <div class="item-row">
+                            <span style="font-size:18px; font-weight:800;">自动发消息</span>
+                            <input type="checkbox" class="custom-switch" ${ChatConfig.settings.autoMsg?'checked':''} onchange="window.setSet('autoMsg', this.checked)">
+                        </div>
+                        <div style="font-size:11px; color:#8e8e93; margin:6px 0;">提示：角色会主动向你发消息。</div>
+                        
+                        <div style="margin-top:15px; position:relative; padding:0 10px;">
+                            <div style="display:flex; justify-content:space-between; font-size:10px; color:#000; font-weight:700; margin-bottom:5px;">
+                                <span>1h</span><span>5h</span><span>10h</span><span>24h</span>
+                            </div>
+                            <input type="range" min="0" max="3" step="1" value="${ChatConfig.settings.autoMsgFreq}" class="ios-slider" oninput="window.updateSet('autoMsgFreq', this.value)">
+                            <div style="font-size:11px; color:#8e8e93; text-align:center; margin-top:8px;">提示：角色发消息的频率。</div>
+                        </div>
+                    </div>
+
+                    <!-- 9. 自动翻译 -->
+                    <div class="glass-group" style="background:rgba(255,255,255,0.6); border-radius:24px; padding:16px; margin-top:16px;">
+                        <div class="item-row">
+                            <span style="font-size:18px; font-weight:800;">自动翻译</span>
+                            <input type="checkbox" class="custom-switch" ${ChatConfig.settings.autoTranslate?'checked':''} onchange="window.setSet('autoTranslate', this.checked)">
+                        </div>
+                        <div style="font-size:11px; color:#8e8e93; margin-top:4px;">提示：非简体中文的内容都将自动翻译成简体中文。</div>
+                    </div>
+
+                    <!-- 10. 危险区 -->
+                    <div class="glass-group" style="background:rgba(255,255,255,0.6); border-radius:24px; padding:16px; margin-top:16px; border:1px solid rgba(255,0,0,0.1);">
+                        <div class="danger-fold" onclick="window.toggleDanger()" style="font-size:18px; display:flex; justify-content:space-between; align-items:center;">
+                            <span>危险区</span> <span class="danger-icon" id="danger-ic" style="color:rgba(0,0,0,0.3); font-weight:300;">></span>
+                        </div>
+                        <div class="danger-content" id="dangerZone" style="display:none; margin-top:15px; border-top:1px dashed rgba(255,0,0,0.1); padding-top:15px;">
+                            <div style="font-size:11px; color:#ff3b30; margin-bottom:8px;">提示：请谨慎清空</div>
+                            <button style="background:#fff; color:#ff3b30; border:1px solid #ff3b30; border-radius:12px; padding:12px; width:100%; margin-bottom:15px; font-weight:700;" onclick="window.clearLog()">清空聊天记录</button>
+                            
+                            <div style="font-size:11px; color:#ff3b30; margin-bottom:8px;">提示：拉黑角色后等于真正的删除好友。</div>
+                            <button class="black-btn" style="margin-bottom:15px;">拉黑联系人</button>
+                            
+                            <div style="font-size:11px; color:#ff3b30; margin-bottom:8px;">提示：删除该角色后，角色还可以找上门来添加你</div>
+                            <button style="background:#fff; color:#000; border:1px solid #000; border-radius:12px; padding:12px; width:100%; font-weight:700;">删除联系人</button>
                         </div>
                     </div>
                 </div>
@@ -328,144 +402,13 @@ window.enterChat = (name) => {
     window.initGesture(document.getElementById('detailSheet'));
     window.loadHistory();
 };
+    window.initGesture(document.getElementById('detailSheet'));
+    window.loadHistory();
+};
 
 // 功能函数 (加固版)
-// ===== 新增：实时刷新状态栏(心理/动作/好感)的 API 调用 =====
-window.updateMentalStatus = async function(userMessage) {
-    try {
-        // 【在此处填入你实际的 API 请求逻辑】
-        // 例如：
-        // const response = await fetch('你的状态栏API地址', { 
-        //     method: 'POST', 
-        //     body: JSON.stringify({ message: userMessage }) 
-        // });
-        // const data = await response.json();
-        
-        // 假设 API 返回的数据格式并赋值给 ChatConfig.mental
-        // ChatConfig.mental = { mood: data.mood, favorability: data.fav, action: data.action, thought: data.thought };
-
-        // 实时更新 DOM 节点，对应上方设置的 id
-        if (document.getElementById('m-mood')) {
-            document.getElementById('m-mood').innerText = ChatConfig.mental.mood;
-            document.getElementById('m-fav').innerText = ChatConfig.mental.favorability;
-            document.getElementById('m-act').innerText = ChatConfig.mental.action;
-            document.getElementById('m-tht').innerText = ChatConfig.mental.thought;
-        }
-    } catch (e) {
-        console.error("状态栏 API 调用失败:", e);
-    }
-};
-
-// ===== 修复并增强：发送消息与双线 API 调用 =====
 window.send = async function() {
-    const inp = document.getElementById('chatInp'); 
-    const flow = document.getElementById('chatFlow');
-    
-    if (!inp.value.trim()) { 
-        if (!ChatConfig.isAITyping) window.triggerReply(); 
-        return; 
-    }
-    
-    const t = inp.value.trim(); 
-    const isNar = /^[\(\（].*[\)\）]$/.test(t);
-    
-    // 1. 渲染用户发送的气泡
-    const d = document.createElement('div'); 
-    d.id = 'm-' + Date.now(); 
-    d.className = isNar ? 'bubble-narration' : 'bubble bubble-user';
-    d.innerText = t;
-    flow.appendChild(d);
-    
-    // 2. 清空输入框并滚动到底部
-    inp.value = '';
-    flow.scrollTop = flow.scrollHeight;
-
-    // 3. 双线触发 API（同时请求回复和状态更新）
-    if (typeof window.triggerReply === 'function') {
-        window.triggerReply(t); // 触发主聊天 API
-    }
-    await window.updateMentalStatus(t); // 触发并刷新状态栏 API
-}; d.innerText = t;
-    flow.appendChild(d); inp.value = ''; window.saveHistory(); window.triggerReply(t);
-};
-
-window.triggerReply = async (ctx = "") => {
-    // 1. 开始动画
-    ChatConfig.isAITyping = true; 
-    const titleEl = document.getElementById('chatTitle');
-    if(titleEl) titleEl.innerHTML = `<span class="nav-typing">输入中…</span>`;
-
-    // 2. 获取 API 配置
-    const baseUrl = localStorage.getItem('main_api_base_url');
-    const apiKey = localStorage.getItem('main_api_key');
-    const model = localStorage.getItem('main_api_model');
-
-    if(!baseUrl || !apiKey || !model) {
-        window.appendBot("【提示】请先在设置中配置 1号API 的 Key 和 地址。");
-        ChatConfig.isAITyping = false; 
-        if(titleEl) titleEl.innerText = "枝玉";
-        return;
-    }
-
-    // 3. 构建指令（接入 ai_behavior.js）
-    const userDefinedSetting = localStorage.getItem('current_char_setting') || "你是一个名叫枝玉的开发者。";
-    const sysPrompt = window.getSystemPrompt ? window.getSystemPrompt(userDefinedSetting) : "你是一个真实的人。";
-
-    let endpoint = baseUrl.replace(/\/+$/, '') + '/chat/completions';
-
-    try {
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: model,
-                messages: [
-                    { role: 'system', content: sysPrompt },
-                    { role: 'user', content: ctx }
-                ]
-            })
-        });
-
-        const data = await response.json();
-        
-        if (data.choices && data.choices[0].message) {
-            // 4. 发送给 appendBot 去显示
-            window.appendBot(data.choices[0].message.content);
-        } else {
-            throw new Error(data.error?.message || "回复内容为空");
-        }
-
-    } catch (error) {
-        window.appendBot(`[连接失败]: ${error.message}`);
-    } finally {
-        ChatConfig.isAITyping = false; 
-        if(titleEl) titleEl.innerText = "枝玉";
-    }
-};
-
-window.appendBot = (c) => {
-    const f = document.getElementById('chatFlow'); let t = c; const jsonMatch = c.match(/\{.*\}/);
-    if(jsonMatch){ try{ ChatConfig.mental = JSON.parse(jsonMatch[0]); t = c.replace(jsonMatch[0], "").trim(); }catch(e){} }
-    const d = document.createElement('div'); d.className = 'bubble bubble-assistant'; d.innerText = t; d.id = 'm-'+Date.now(); d.oncontextmenu = (e)=>window.showBubbleMenu(e,d);
-    f.appendChild(d); const ad = document.createElement('div'); ad.className = 'translate-adherent'; f.appendChild(ad);
-    f.scrollTop = f.scrollHeight; window.saveHistory();
-};
-
-window.saveHistory = () => { const f = document.getElementById('chatFlow'); if(f) localStorage.setItem('yujie_logs_枝玉', JSON.stringify(f.innerHTML)); };
-window.loadHistory = () => { const l = localStorage.getItem('yujie_logs_枝玉'); if(l){ const f = document.getElementById('chatFlow'); f.innerHTML = JSON.parse(l); f.querySelectorAll('.bubble').forEach(b => b.oncontextmenu = (e)=>window.showBubbleMenu(e,b)); } };
-window.updateSet = (k,v,id) => { ChatConfig.settings[k]=v; localStorage.setItem('yujie_'+k,v); if(id) document.getElementById(id).innerText=v+"轮"; };
-window.setSet = (k,v) => { ChatConfig.settings[k]=v; localStorage.setItem('yujie_'+k,v); };
-window.toggleDanger = () => { const dz = document.getElementById('dangerZone'); const ic = document.getElementById('danger-ic'); const show = dz.style.display==='block'; dz.style.display=show?'none':'block'; ic.innerText=show?'>':'∨'; };
-window.toggleMental = (s) => { const p = document.getElementById('mentalPop'); if(s===undefined) p.style.display=p.style.display==='block'?'none':'block'; else p.style.display=s?'block':'none'; };
-window.closeChat = () => document.getElementById('chatOverlay').style.display = 'none';
-window.closeWhole = () => { document.body.classList.remove('chat-active'); document.getElementById('genericAppWindow').style.display = 'none'; };
-
-window.addEventListener('click', (e) => { 
-    if(!e.target.closest('.bubble') && document.getElementById('bubbleMenu')) document.getElementById('bubbleMenu').style.display='none';
-    const pop = document.getElementById('mentalPop'); if(pop && pop.style.display==='block' && !pop.contains(e.target) && !e.target.classList.contains('nav-mental-btn')) window.toggleMental(false);
-});
-
-console.log("玉界：旗舰加固完全体已注入。");
+    const inp = document.getElementById('chatInp'); const flow = document.getElementById('chatFlow');
+    if (!inp.value.trim()) { if (!ChatConfig.isAITyping) window.triggerReply(); return; }
+    const t = inp.value.trim(); const isNar = /^[\(\（].*[\)\）]$/.test(t);
+    const d = document.createElement('div'); d.id='m-'+Date.now(); d.className = isNar ? 'bubble-narration' : 'bubble bubble-user';
