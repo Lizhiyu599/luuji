@@ -405,33 +405,36 @@ window.enterChat = (name) => {
     window.initGesture(document.getElementById('detailSheet'));
     window.loadHistory();
 };
-// ===== 新增：实时刷新状态栏(心理/动作/好感)的 API 调用 =====
-window.updateMentalStatus = async function(userMessage) {
-    try {
-        // 获取状态数据（兼容系统底层不同的变量名）
-        const mentalData = window.ChatConfig?.mental || window.ChatConfig?.activeChar || {};
 
-        // 刷新状态栏 DOM 节点，加入保护机制防止显示 undefined
-        if (document.getElementById('m-mood')) {
-            document.getElementById('m-mood').innerText = mentalData.mood || '平静';
-        }
-        if (document.getElementById('m-fav')) {
-            document.getElementById('m-fav').innerText = mentalData.favorability || '0';
-        }
-        if (document.getElementById('m-act')) {
-            document.getElementById('m-act').innerText = mentalData.action || '无';
-        }
-        if (document.getElementById('m-tht')) {
-            document.getElementById('m-tht').innerText = mentalData.thought || '思考中...';
-        }
-    } catch (e) {
-        console.error("状态栏 API 调用失败:", e);
-    }
-};
 // 功能函数 (加固版)
 window.send = async function() {
     const inp = document.getElementById('chatInp'); const flow = document.getElementById('chatFlow');
     if (!inp.value.trim()) { if (!ChatConfig.isAITyping) window.triggerReply(); return; }
     const t = inp.value.trim(); const isNar = /^[\(\（].*[\)\）]$/.test(t);
-    window.updateMentalStatus(t); 
     const d = document.createElement('div'); d.id='m-'+Date.now(); d.className = isNar ? 'bubble-narration' : 'bubble bubble-user';
+    // ===== 新增功能（直接放在文件最底部，绝不影响上面的原代码） =====
+
+// 1. 状态栏更新 API
+window.updateMentalStatus = async function(userMessage) {
+    try {
+        const mentalData = window.ChatConfig?.mental || window.ChatConfig?.activeChar || {};
+        if (document.getElementById('m-mood')) document.getElementById('m-mood').innerText = mentalData.mood || '平静';
+        if (document.getElementById('m-fav')) document.getElementById('m-fav').innerText = mentalData.favorability || '0';
+        if (document.getElementById('m-act')) document.getElementById('m-act').innerText = mentalData.action || '无';
+        if (document.getElementById('m-tht')) document.getElementById('m-tht').innerText = mentalData.thought || '思考中...';
+    } catch (e) {
+        console.error("状态栏 API 调用失败:", e);
+    }
+};
+
+// 2. 无损外挂：拦截发送动作，顺便刷新状态
+const originalSend = window.send; // 备份你原本无缺的发送代码
+window.send = async function() {
+    const inp = document.getElementById('chatInp');
+    // 在发送前，如果输入框有内容，就调用状态栏刷新
+    if (inp && inp.value.trim()) {
+        window.updateMentalStatus(inp.value.trim()); 
+    }
+    // 继续执行你原本所有的气泡和界面逻辑，一字不差
+    return originalSend.apply(this, arguments); 
+};
