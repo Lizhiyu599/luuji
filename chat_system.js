@@ -405,36 +405,59 @@ window.enterChat = (name) => {
     window.initGesture(document.getElementById('detailSheet'));
     window.loadHistory();
 };
-
 // 功能函数 (加固版)
 window.send = async function() {
-    const inp = document.getElementById('chatInp'); const flow = document.getElementById('chatFlow');
-    if (!inp.value.trim()) { if (!ChatConfig.isAITyping) window.triggerReply(); return; }
-    const t = inp.value.trim(); const isNar = /^[\(\（].*[\)\）]$/.test(t);
-    const d = document.createElement('div'); d.id='m-'+Date.now(); d.className = isNar ? 'bubble-narration' : 'bubble bubble-user';
-    // ===== 新增功能（直接放在文件最底部，绝不影响上面的原代码） =====
+    const inp = document.getElementById('chatInp'); 
+    const flow = document.getElementById('chatFlow');
+    
+    // 1. 如果没有输入内容，触发自动回复
+    if (!inp.value.trim()) { 
+        if (!ChatConfig.isAITyping) window.triggerReply(); 
+        return; 
+    }
+    
+    // 2. 提取输入并判断是否为旁白
+    const t = inp.value.trim(); 
+    const isNar = /^[\(\（].*[\)\）]$/.test(t);
+    
+    // 3. 执行联动：发送消息时同步刷新状态栏
+    window.updateMentalStatus(t);
 
-// 1. 状态栏更新 API
+    // 4. 生成气泡并显示
+    const d = document.createElement('div'); 
+    d.id = 'm-' + Date.now(); 
+    d.className = isNar ? 'bubble-narration' : 'bubble bubble-user';
+    d.innerText = t;
+    
+    if (flow) {
+        flow.appendChild(d);
+        flow.scrollTop = flow.scrollHeight;
+    }
+    
+    // 5. 清空输入框
+    inp.value = '';
+};
+
+// ===== 新增：实时刷新状态栏(心理/动作/好感)的 API 调用 =====
 window.updateMentalStatus = async function(userMessage) {
     try {
+        // 获取配置数据
         const mentalData = window.ChatConfig?.mental || window.ChatConfig?.activeChar || {};
-        if (document.getElementById('m-mood')) document.getElementById('m-mood').innerText = mentalData.mood || '平静';
-        if (document.getElementById('m-fav')) document.getElementById('m-fav').innerText = mentalData.favorability || '0';
-        if (document.getElementById('m-act')) document.getElementById('m-act').innerText = mentalData.action || '无';
-        if (document.getElementById('m-tht')) document.getElementById('m-tht').innerText = mentalData.thought || '思考中...';
+        
+        // 实时更新 DOM 节点 (包含防空保护，防止 undefined)
+        if (document.getElementById('m-mood')) {
+            document.getElementById('m-mood').innerText = mentalData.mood || '平静';
+        }
+        if (document.getElementById('m-fav')) {
+            document.getElementById('m-fav').innerText = mentalData.favorability || '0';
+        }
+        if (document.getElementById('m-act')) {
+            document.getElementById('m-act').innerText = mentalData.action || '无';
+        }
+        if (document.getElementById('m-tht')) {
+            document.getElementById('m-tht').innerText = mentalData.thought || '思考中...';
+        }
     } catch (e) {
         console.error("状态栏 API 调用失败:", e);
     }
-};
-
-// 2. 无损外挂：拦截发送动作，顺便刷新状态
-const originalSend = window.send; // 备份你原本无缺的发送代码
-window.send = async function() {
-    const inp = document.getElementById('chatInp');
-    // 在发送前，如果输入框有内容，就调用状态栏刷新
-    if (inp && inp.value.trim()) {
-        window.updateMentalStatus(inp.value.trim()); 
-    }
-    // 继续执行你原本所有的气泡和界面逻辑，一字不差
-    return originalSend.apply(this, arguments); 
 };
