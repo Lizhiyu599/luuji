@@ -330,11 +330,62 @@ window.enterChat = (name) => {
 };
 
 // 功能函数 (加固版)
+// ===== 新增：实时刷新状态栏(心理/动作/好感)的 API 调用 =====
+window.updateMentalStatus = async function(userMessage) {
+    try {
+        // 【在此处填入你实际的 API 请求逻辑】
+        // 例如：
+        // const response = await fetch('你的状态栏API地址', { 
+        //     method: 'POST', 
+        //     body: JSON.stringify({ message: userMessage }) 
+        // });
+        // const data = await response.json();
+        
+        // 假设 API 返回的数据格式并赋值给 ChatConfig.mental
+        // ChatConfig.mental = { mood: data.mood, favorability: data.fav, action: data.action, thought: data.thought };
+
+        // 实时更新 DOM 节点，对应上方设置的 id
+        if (document.getElementById('m-mood')) {
+            document.getElementById('m-mood').innerText = ChatConfig.mental.mood;
+            document.getElementById('m-fav').innerText = ChatConfig.mental.favorability;
+            document.getElementById('m-act').innerText = ChatConfig.mental.action;
+            document.getElementById('m-tht').innerText = ChatConfig.mental.thought;
+        }
+    } catch (e) {
+        console.error("状态栏 API 调用失败:", e);
+    }
+};
+
+// ===== 修复并增强：发送消息与双线 API 调用 =====
 window.send = async function() {
-    const inp = document.getElementById('chatInp'); const flow = document.getElementById('chatFlow');
-    if (!inp.value.trim()) { if (!ChatConfig.isAITyping) window.triggerReply(); return; }
-    const t = inp.value.trim(); const isNar = /^[\(\（].*[\)\）]$/.test(t);
-    const d = document.createElement('div'); d.id='m-'+Date.now(); d.className = isNar ? 'bubble-narration' : 'bubble bubble-user'; d.innerText = t;
+    const inp = document.getElementById('chatInp'); 
+    const flow = document.getElementById('chatFlow');
+    
+    if (!inp.value.trim()) { 
+        if (!ChatConfig.isAITyping) window.triggerReply(); 
+        return; 
+    }
+    
+    const t = inp.value.trim(); 
+    const isNar = /^[\(\（].*[\)\）]$/.test(t);
+    
+    // 1. 渲染用户发送的气泡
+    const d = document.createElement('div'); 
+    d.id = 'm-' + Date.now(); 
+    d.className = isNar ? 'bubble-narration' : 'bubble bubble-user';
+    d.innerText = t;
+    flow.appendChild(d);
+    
+    // 2. 清空输入框并滚动到底部
+    inp.value = '';
+    flow.scrollTop = flow.scrollHeight;
+
+    // 3. 双线触发 API（同时请求回复和状态更新）
+    if (typeof window.triggerReply === 'function') {
+        window.triggerReply(t); // 触发主聊天 API
+    }
+    await window.updateMentalStatus(t); // 触发并刷新状态栏 API
+}; d.innerText = t;
     flow.appendChild(d); inp.value = ''; window.saveHistory(); window.triggerReply(t);
 };
 
