@@ -406,34 +406,49 @@ window.enterChat = (name) => {
     window.loadHistory();
 };
 
-// 功能函数 (加固版)
+// ===== 修复：发送与状态栏联动系统 =====
 window.send = async function() {
-    const inp = document.getElementById('chatInp'); const flow = document.getElementById('chatFlow');
-    if (!inp.value.trim()) { if (!ChatConfig.isAITyping) window.triggerReply(); return; }
-    const t = inp.value.trim(); const isNar = /^[\(\（].*[\)\）]$/.test(t);
-    // --- 鱼鱼专属：强制修复脚本 ---
-(function() {
-    // 强制调用样式注入
-    if (typeof injectFlagshipStyle === 'function') {
-        injectFlagshipStyle();
+    const inp = document.getElementById('chatInp'); 
+    const flow = document.getElementById('chatFlow');
+    if (!inp) return;
+    
+    // 1. 发送前校验
+    const t = inp.value.trim();
+    if (!t) { 
+        if (!ChatConfig.isAITyping) window.triggerReply(); 
+        return; 
     }
+    
+    // 2. 联动：触发状态栏刷新
+    if (typeof window.updateMentalStatus === 'function') {
+        window.updateMentalStatus(t);
+    }
+    
+    // 3. 生成气泡
+    const isNar = /^[\(\（].*[\)\）]$/.test(t);
+    const d = document.createElement('div'); 
+    d.id = 'm-' + Date.now(); 
+    d.className = isNar ? 'bubble-narration' : 'bubble bubble-user';
+    d.innerText = t;
+    
+    if (flow) {
+        flow.appendChild(d);
+        flow.scrollTop = flow.scrollHeight;
+    }
+    inp.value = '';
+};
 
-    // 强行把底部标签固定（如果它还没归位）
-    const style = document.createElement('style');
-    style.innerHTML = `
-        .tab-fixed-bottom { position: fixed !important; bottom: 0 !important; display: flex !important; }
-        .chat-main-body { padding-bottom: 70px !important; }
-    `;
-    document.head.appendChild(style);
-
-    // 状态栏防undefined显示逻辑
-    window.updateMentalStatus = function() {
+// 状态栏刷新函数 (防御性编程，防止 undefined)
+window.updateMentalStatus = function(userMessage) {
+    try {
         const mentalData = window.ChatConfig?.mental || {};
         const targets = { 'm-mood': '平静', 'm-fav': '0', 'm-act': '无', 'm-tht': '思考中...' };
         for (let id in targets) {
             const el = document.getElementById(id);
-            if (el) el.innerText = mentalData[id.replace('m-', '')] || targets[id];
+            if (el) {
+                const val = mentalData[id.replace('m-', '')];
+                el.innerText = val !== undefined ? val : targets[id];
+            }
         }
-    };
-})();
-    const d = document.createElement('div'); d.id='m-'+Date.now(); d.className = isNar ? 'bubble-narration' : 'bubble bubble-user';
+    } catch (e) { console.error("状态刷新异常:", e); }
+};
