@@ -408,14 +408,21 @@ window.enterChat = (name) => {
 // ===== 新增：实时刷新状态栏(心理/动作/好感)的 API 调用 =====
 window.updateMentalStatus = async function(userMessage) {
     try {
-        // 【在此处填入你实际的 API 请求逻辑】
-        
-        // 实时更新 DOM 节点
+        // 获取状态数据（兼容系统底层不同的变量名）
+        const mentalData = window.ChatConfig?.mental || window.ChatConfig?.activeChar || {};
+
+        // 刷新状态栏 DOM 节点，加入保护机制防止显示 undefined
         if (document.getElementById('m-mood')) {
-            document.getElementById('m-mood').innerText = ChatConfig.mental.mood;
-            document.getElementById('m-fav').innerText = ChatConfig.mental.favorability;
-            document.getElementById('m-act').innerText = ChatConfig.mental.action;
-            document.getElementById('m-tht').innerText = ChatConfig.mental.thought;
+            document.getElementById('m-mood').innerText = mentalData.mood || '平静';
+        }
+        if (document.getElementById('m-fav')) {
+            document.getElementById('m-fav').innerText = mentalData.favorability || '0';
+        }
+        if (document.getElementById('m-act')) {
+            document.getElementById('m-act').innerText = mentalData.action || '无';
+        }
+        if (document.getElementById('m-tht')) {
+            document.getElementById('m-tht').innerText = mentalData.thought || '思考中...';
         }
     } catch (e) {
         console.error("状态栏 API 调用失败:", e);
