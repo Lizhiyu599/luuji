@@ -339,11 +339,60 @@ window.send = async function() {
 };
 
 window.triggerReply = async (ctx = "") => {
-    ChatConfig.isAITyping = true; document.getElementById('chatTitle').innerHTML = `<span class="nav-typing">输入中…</span>`;
-    setTimeout(() => {
-        window.appendBot("系统已接管：这是一个20字以内的回复。");
-        ChatConfig.isAITyping = false; document.getElementById('chatTitle').innerText = "枝玉";
-    }, 1500);
+    // 1. 开始动画
+    ChatConfig.isAITyping = true; 
+    const titleEl = document.getElementById('chatTitle');
+    if(titleEl) titleEl.innerHTML = `<span class="nav-typing">输入中…</span>`;
+
+    // 2. 获取 API 配置
+    const baseUrl = localStorage.getItem('main_api_base_url');
+    const apiKey = localStorage.getItem('main_api_key');
+    const model = localStorage.getItem('main_api_model');
+
+    if(!baseUrl || !apiKey || !model) {
+        window.appendBot("【提示】请先在设置中配置 1号API 的 Key 和 地址。");
+        ChatConfig.isAITyping = false; 
+        if(titleEl) titleEl.innerText = "枝玉";
+        return;
+    }
+
+    // 3. 构建指令（接入 ai_behavior.js）
+    const userDefinedSetting = localStorage.getItem('current_char_setting') || "你是一个名叫枝玉的开发者。";
+    const sysPrompt = window.getSystemPrompt ? window.getSystemPrompt(userDefinedSetting) : "你是一个真实的人。";
+
+    let endpoint = baseUrl.replace(/\/+$/, '') + '/chat/completions';
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: [
+                    { role: 'system', content: sysPrompt },
+                    { role: 'user', content: ctx }
+                ]
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.choices && data.choices[0].message) {
+            // 4. 发送给 appendBot 去显示
+            window.appendBot(data.choices[0].message.content);
+        } else {
+            throw new Error(data.error?.message || "回复内容为空");
+        }
+
+    } catch (error) {
+        window.appendBot(`[连接失败]: ${error.message}`);
+    } finally {
+        ChatConfig.isAITyping = false; 
+        if(titleEl) titleEl.innerText = "枝玉";
+    }
 };
 
 window.appendBot = (c) => {
