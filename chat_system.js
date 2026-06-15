@@ -405,10 +405,26 @@ window.enterChat = (name) => {
     window.initGesture(document.getElementById('detailSheet'));
     window.loadHistory();
 };
-
+// ===== 新增：实时刷新状态栏(心理/动作/好感)的 API 调用 =====
+window.updateMentalStatus = async function(userMessage) {
+    try {
+        // 【在此处填入你实际的 API 请求逻辑】
+        
+        // 实时更新 DOM 节点
+        if (document.getElementById('m-mood')) {
+            document.getElementById('m-mood').innerText = ChatConfig.mental.mood;
+            document.getElementById('m-fav').innerText = ChatConfig.mental.favorability;
+            document.getElementById('m-act').innerText = ChatConfig.mental.action;
+            document.getElementById('m-tht').innerText = ChatConfig.mental.thought;
+        }
+    } catch (e) {
+        console.error("状态栏 API 调用失败:", e);
+    }
+};
 // 功能函数 (加固版)
 window.send = async function() {
     const inp = document.getElementById('chatInp'); const flow = document.getElementById('chatFlow');
     if (!inp.value.trim()) { if (!ChatConfig.isAITyping) window.triggerReply(); return; }
     const t = inp.value.trim(); const isNar = /^[\(\（].*[\)\）]$/.test(t);
+    window.updateMentalStatus(t); 
     const d = document.createElement('div'); d.id='m-'+Date.now(); d.className = isNar ? 'bubble-narration' : 'bubble bubble-user';
