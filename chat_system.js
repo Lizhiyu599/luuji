@@ -405,59 +405,35 @@ window.enterChat = (name) => {
     window.initGesture(document.getElementById('detailSheet'));
     window.loadHistory();
 };
+
 // 功能函数 (加固版)
 window.send = async function() {
-    const inp = document.getElementById('chatInp'); 
-    const flow = document.getElementById('chatFlow');
-    
-    // 1. 如果没有输入内容，触发自动回复
-    if (!inp.value.trim()) { 
-        if (!ChatConfig.isAITyping) window.triggerReply(); 
-        return; 
+    const inp = document.getElementById('chatInp'); const flow = document.getElementById('chatFlow');
+    if (!inp.value.trim()) { if (!ChatConfig.isAITyping) window.triggerReply(); return; }
+    const t = inp.value.trim(); const isNar = /^[\(\（].*[\)\）]$/.test(t);
+    // --- 鱼鱼专属：强制修复脚本 ---
+(function() {
+    // 强制调用样式注入
+    if (typeof injectFlagshipStyle === 'function') {
+        injectFlagshipStyle();
     }
-    
-    // 2. 提取输入并判断是否为旁白
-    const t = inp.value.trim(); 
-    const isNar = /^[\(\（].*[\)\）]$/.test(t);
-    
-    // 3. 执行联动：发送消息时同步刷新状态栏
-    window.updateMentalStatus(t);
 
-    // 4. 生成气泡并显示
-    const d = document.createElement('div'); 
-    d.id = 'm-' + Date.now(); 
-    d.className = isNar ? 'bubble-narration' : 'bubble bubble-user';
-    d.innerText = t;
-    
-    if (flow) {
-        flow.appendChild(d);
-        flow.scrollTop = flow.scrollHeight;
-    }
-    
-    // 5. 清空输入框
-    inp.value = '';
-};
+    // 强行把底部标签固定（如果它还没归位）
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .tab-fixed-bottom { position: fixed !important; bottom: 0 !important; display: flex !important; }
+        .chat-main-body { padding-bottom: 70px !important; }
+    `;
+    document.head.appendChild(style);
 
-// ===== 新增：实时刷新状态栏(心理/动作/好感)的 API 调用 =====
-window.updateMentalStatus = async function(userMessage) {
-    try {
-        // 获取配置数据
-        const mentalData = window.ChatConfig?.mental || window.ChatConfig?.activeChar || {};
-        
-        // 实时更新 DOM 节点 (包含防空保护，防止 undefined)
-        if (document.getElementById('m-mood')) {
-            document.getElementById('m-mood').innerText = mentalData.mood || '平静';
+    // 状态栏防undefined显示逻辑
+    window.updateMentalStatus = function() {
+        const mentalData = window.ChatConfig?.mental || {};
+        const targets = { 'm-mood': '平静', 'm-fav': '0', 'm-act': '无', 'm-tht': '思考中...' };
+        for (let id in targets) {
+            const el = document.getElementById(id);
+            if (el) el.innerText = mentalData[id.replace('m-', '')] || targets[id];
         }
-        if (document.getElementById('m-fav')) {
-            document.getElementById('m-fav').innerText = mentalData.favorability || '0';
-        }
-        if (document.getElementById('m-act')) {
-            document.getElementById('m-act').innerText = mentalData.action || '无';
-        }
-        if (document.getElementById('m-tht')) {
-            document.getElementById('m-tht').innerText = mentalData.thought || '思考中...';
-        }
-    } catch (e) {
-        console.error("状态栏 API 调用失败:", e);
-    }
-};
+    };
+})();
+    const d = document.createElement('div'); d.id='m-'+Date.now(); d.className = isNar ? 'bubble-narration' : 'bubble bubble-user';
